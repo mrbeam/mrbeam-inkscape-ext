@@ -1,0 +1,4 @@
+/nbproject/
+*.pyc
+debug.log
+debug.gcode
