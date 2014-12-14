@@ -86,20 +86,20 @@ straight_distance_tolerance = 0.0001
 engraving_tolerance = 0.0001
 loft_lengths_tolerance = 0.0000001
 options = {}
-defaults = {
-'header': """
-$H
-G92X0Y0Z0
-G90
-M08
-""",
-'footer': """
-M05S0
-G0 X0.000 Y0.000
-M09
-M02
-"""
-}
+#defaults = {
+#'header': """
+#$H
+#G92X0Y0Z0
+#G90
+#M08
+#""",
+#'footer': """
+#M05S0
+#G0 X0.000 Y0.000
+#M09
+#M02
+#"""
+#}
 
 intersection_recursion_depth = 10
 intersection_tolerance = 0.00001
@@ -2236,175 +2236,175 @@ class Polygon:
 		self.draw(color="Green", width=1)	
 
 
-class Arangement_Genetic:
-	# gene = [fittness, order, rotation, xposition]
-	# spieces = [gene]*shapes count
-	# population = [spieces]
-	def __init__(self, polygons, material_width):
-		self.population = []
-		self.genes_count = len(polygons)
-		self.polygons = polygons
-		self.width = material_width
-		self.mutation_factor = 0.1
-		self.order_mutate_factor = 1.
-		self.move_mutate_factor = 1.
-
-	
-	def add_random_species(self,count):
-		for i in range(count):
-			specimen = []
-			order = range(self.genes_count)
-			random.shuffle(order)
-			for j in order:
-				specimen += [ [j, random.random(), random.random()] ]
-			self.population += [ [None,specimen] ]
-
-	
-	def species_distance2(self,sp1,sp2) :
-		# retun distance, each component is normalized
-		s = 0
-		for j in range(self.genes_count) :
-			s += ((sp1[j][0]-sp2[j][0])/self.genes_count)**2 + (( sp1[j][1]-sp2[j][1]))**2 + ((sp1[j][2]-sp2[j][2]))**2
-		return s
-
-	
-	def similarity(self,sp1,top) :
-		# Define similarity as a simple distance between two points in len(gene)*len(spiece) -th dimentions
-		# for sp2 in top_spieces sum(|sp1-sp2|)/top_count
-		sim = 0
-		for sp2 in top : 
-			sim += math.sqrt(species_distance2(sp1,sp2[1]))
-		return sim/len(top)
-		
-	
-	def leave_top_species(self,count):
-		self.population.sort()
-		res = [  copy.deepcopy(self.population[0]) ]
-		del self.population[0]
-		for i in range(count-1) :
-			t = []
-			for j in range(20) : 
-				i1 = random.randint(0,len(self.population)-1) 
-				t += [ [self.population[i1][0],i1] ] 
-			t.sort()
-			res += [  copy.deepcopy(self.population[t[0][1]]) ]
-			del self.population[t[0][1]]
-		self.population = res		
-		#del self.population[0]
-		#for c in range(count-1) :
-		#	rank = []
-		#	for i in range(len(self.population)) :	
-		#		sim = self.similarity(self.population[i][1],res)
-		#		rank += [ [self.population[i][0] / sim if sim>0 else 1e100,i] ]
-		#	rank.sort()
-		#	res += [  copy.deepcopy(self.population[rank[0][1]]) ]
-		#	print_(rank[0],self.population[rank[0][1]][0])
-		#	print_(res[-1])
-		#	del self.population[rank[0][1]]
-			
-		self.population = res
-			
-			
-	def populate_species(self,count, parent_count):
-		self.population.sort()
-		self.inc = 0
-		for c in range(count):
-			parent1 = random.randint(0,parent_count-1)
-			parent2 = random.randint(0,parent_count-1)
-			if parent1==parent2 : parent2 = (parent2+1) % parent_count
-			parent1, parent2 = self.population[parent1][1], self.population[parent2][1]
-			i1,i2 = 0, 0
-			genes_order = []
-			specimen = [ [0,0.,0.] for i in range(self.genes_count) ]
-			
-			self.incest_mutation_multiplyer = 1.
-			self.incest_mutation_count_multiplyer = 1.
-
-			if self.species_distance2(parent1, parent2) <= .01/self.genes_count :
-				# OMG it's a incest :O!!!
-				# Damn you bastards!
-				self.inc +=1
-				self.incest_mutation_multiplyer = 2. 
-				self.incest_mutation_count_multiplyer = 2. 
-			else :
-				if random.random()<.01 : print_(self.species_distance2(parent1, parent2))	
-			start_gene = random.randint(0,self.genes_count)
-			end_gene = (max(1,random.randint(0,self.genes_count),int(self.genes_count/4))+start_gene) % self.genes_count
-			if end_gene<start_gene : 
-				end_gene, start_gene = start_gene, end_gene
-				parent1, parent2 = parent2, parent1
-			for i in range(start_gene,end_gene) : 
-				#rotation_mutate_param = random.random()/100
-				#xposition_mutate_param = random.random()/100
-				tr = 1. #- rotation_mutate_param
-				tp = 1. #- xposition_mutate_param
-				specimen[i] = [parent1[i][0], parent1[i][1]*tr+parent2[i][1]*(1-tr),parent1[i][2]*tp+parent2[i][2]*(1-tp)]
-				genes_order += [ parent1[i][0] ]
-
-			for i in range(0,start_gene)+range(end_gene,self.genes_count) : 
-				tr = 0. #rotation_mutate_param
-				tp = 0. #xposition_mutate_param
-				j = i 
-				while parent2[j][0] in genes_order :
-					j = (j+1)%self.genes_count
-				specimen[i] = [parent2[j][0], parent1[i][1]*tr+parent2[i][1]*(1-tr),parent1[i][2]*tp+parent2[i][2]*(1-tp)]
-				genes_order += [ parent2[j][0] ]						
-				
-
-			for i in range(random.randint(self.mutation_genes_count[0],self.mutation_genes_count[0]*self.incest_mutation_count_multiplyer )) :
-				if random.random() < self.order_mutate_factor * self.incest_mutation_multiplyer : 
-					i1,i2 = random.randint(0,self.genes_count-1),random.randint(0,self.genes_count-1)
-					specimen[i1][0], specimen[i2][0] = specimen[i2][0], specimen[i1][0]
-				if random.random() < self.move_mutation_factor * self.incest_mutation_multiplyer: 
-					i1 = random.randint(0,self.genes_count-1)
-					specimen[i1][1] =  (specimen[i1][1]+random.random()*math.pi2*self.move_mutation_multiplier)%1.
-					specimen[i1][2] =  (specimen[i1][2]+random.random()*self.move_mutation_multiplier)%1.
-			self.population += [ [None,specimen] ]	
-
-	
-	def test_spiece_drop_down(self,spiece) : 
-		surface = Polygon()
-		for p in spiece :
-			time_ = time.time()
-			poly = Polygon(copy.deepcopy(self.polygons[p[0]].polygon))
-			poly.rotate(p[1]*math.pi2)
-			w = poly.width()
-			left = poly.bounds()[0]
-			poly.move( -left + (self.width-w)*p[2],0)
-			poly.drop_down(surface)
-			surface.add(poly)
-		return surface
-
-	
-	def test(self,test_function): 
-		for i in range(len(self.population)) :
-			if self.population[i][0] == None :
-				surface = test_function(self.population[i][1])
-				b = surface.bounds()
-				self.population[i][0] = (b[3]-b[1])*(b[2]-b[0])
-		self.population.sort()				 
-
-
-	def test_spiece_centroid(self,spiece) : 
-		poly = Polygon(copy.deepcopy(self.polygons[spiece[0][0]].polygon))
-		poly.rotate(spiece[0][2]*math.pi2)
-		surface  = Polygon(poly.polygon)
-		i = 0
-		for p in spiece[1:] :
-			i += 1
-			poly = Polygon(copy.deepcopy(self.polygons[p[0]].polygon))
-			poly.rotate(p[2]*math.pi2)
-			c = surface.centroid()
-			c1 = poly.centroid()
-			direction = [math.cos(p[1]*math.pi2), -math.sin(p[1]*math.pi2)]
-			poly.move(c[0]-c1[0]-direction[0]*100,c[1]-c1[1]-direction[1]*100)
-			poly.drop_into_direction(direction,surface)
-			surface.add(poly)
-		return surface
-		
-		
-		
-		#surface.draw()
+#class Arangement_Genetic:
+#	# gene = [fittness, order, rotation, xposition]
+#	# spieces = [gene]*shapes count
+#	# population = [spieces]
+#	def __init__(self, polygons, material_width):
+#		self.population = []
+#		self.genes_count = len(polygons)
+#		self.polygons = polygons
+#		self.width = material_width
+#		self.mutation_factor = 0.1
+#		self.order_mutate_factor = 1.
+#		self.move_mutate_factor = 1.
+#
+#	
+#	def add_random_species(self,count):
+#		for i in range(count):
+#			specimen = []
+#			order = range(self.genes_count)
+#			random.shuffle(order)
+#			for j in order:
+#				specimen += [ [j, random.random(), random.random()] ]
+#			self.population += [ [None,specimen] ]
+#
+#	
+#	def species_distance2(self,sp1,sp2) :
+#		# retun distance, each component is normalized
+#		s = 0
+#		for j in range(self.genes_count) :
+#			s += ((sp1[j][0]-sp2[j][0])/self.genes_count)**2 + (( sp1[j][1]-sp2[j][1]))**2 + ((sp1[j][2]-sp2[j][2]))**2
+#		return s
+#
+#	
+#	def similarity(self,sp1,top) :
+#		# Define similarity as a simple distance between two points in len(gene)*len(spiece) -th dimentions
+#		# for sp2 in top_spieces sum(|sp1-sp2|)/top_count
+#		sim = 0
+#		for sp2 in top : 
+#			sim += math.sqrt(species_distance2(sp1,sp2[1]))
+#		return sim/len(top)
+#		
+#	
+#	def leave_top_species(self,count):
+#		self.population.sort()
+#		res = [  copy.deepcopy(self.population[0]) ]
+#		del self.population[0]
+#		for i in range(count-1) :
+#			t = []
+#			for j in range(20) : 
+#				i1 = random.randint(0,len(self.population)-1) 
+#				t += [ [self.population[i1][0],i1] ] 
+#			t.sort()
+#			res += [  copy.deepcopy(self.population[t[0][1]]) ]
+#			del self.population[t[0][1]]
+#		self.population = res		
+#		#del self.population[0]
+#		#for c in range(count-1) :
+#		#	rank = []
+#		#	for i in range(len(self.population)) :	
+#		#		sim = self.similarity(self.population[i][1],res)
+#		#		rank += [ [self.population[i][0] / sim if sim>0 else 1e100,i] ]
+#		#	rank.sort()
+#		#	res += [  copy.deepcopy(self.population[rank[0][1]]) ]
+#		#	print_(rank[0],self.population[rank[0][1]][0])
+#		#	print_(res[-1])
+#		#	del self.population[rank[0][1]]
+#			
+#		self.population = res
+#			
+#			
+#	def populate_species(self,count, parent_count):
+#		self.population.sort()
+#		self.inc = 0
+#		for c in range(count):
+#			parent1 = random.randint(0,parent_count-1)
+#			parent2 = random.randint(0,parent_count-1)
+#			if parent1==parent2 : parent2 = (parent2+1) % parent_count
+#			parent1, parent2 = self.population[parent1][1], self.population[parent2][1]
+#			i1,i2 = 0, 0
+#			genes_order = []
+#			specimen = [ [0,0.,0.] for i in range(self.genes_count) ]
+#			
+#			self.incest_mutation_multiplyer = 1.
+#			self.incest_mutation_count_multiplyer = 1.
+#
+#			if self.species_distance2(parent1, parent2) <= .01/self.genes_count :
+#				# OMG it's a incest :O!!!
+#				# Damn you bastards!
+#				self.inc +=1
+#				self.incest_mutation_multiplyer = 2. 
+#				self.incest_mutation_count_multiplyer = 2. 
+#			else :
+#				if random.random()<.01 : print_(self.species_distance2(parent1, parent2))	
+#			start_gene = random.randint(0,self.genes_count)
+#			end_gene = (max(1,random.randint(0,self.genes_count),int(self.genes_count/4))+start_gene) % self.genes_count
+#			if end_gene<start_gene : 
+#				end_gene, start_gene = start_gene, end_gene
+#				parent1, parent2 = parent2, parent1
+#			for i in range(start_gene,end_gene) : 
+#				#rotation_mutate_param = random.random()/100
+#				#xposition_mutate_param = random.random()/100
+#				tr = 1. #- rotation_mutate_param
+#				tp = 1. #- xposition_mutate_param
+#				specimen[i] = [parent1[i][0], parent1[i][1]*tr+parent2[i][1]*(1-tr),parent1[i][2]*tp+parent2[i][2]*(1-tp)]
+#				genes_order += [ parent1[i][0] ]
+#
+#			for i in range(0,start_gene)+range(end_gene,self.genes_count) : 
+#				tr = 0. #rotation_mutate_param
+#				tp = 0. #xposition_mutate_param
+#				j = i 
+#				while parent2[j][0] in genes_order :
+#					j = (j+1)%self.genes_count
+#				specimen[i] = [parent2[j][0], parent1[i][1]*tr+parent2[i][1]*(1-tr),parent1[i][2]*tp+parent2[i][2]*(1-tp)]
+#				genes_order += [ parent2[j][0] ]						
+#				
+#
+#			for i in range(random.randint(self.mutation_genes_count[0],self.mutation_genes_count[0]*self.incest_mutation_count_multiplyer )) :
+#				if random.random() < self.order_mutate_factor * self.incest_mutation_multiplyer : 
+#					i1,i2 = random.randint(0,self.genes_count-1),random.randint(0,self.genes_count-1)
+#					specimen[i1][0], specimen[i2][0] = specimen[i2][0], specimen[i1][0]
+#				if random.random() < self.move_mutation_factor * self.incest_mutation_multiplyer: 
+#					i1 = random.randint(0,self.genes_count-1)
+#					specimen[i1][1] =  (specimen[i1][1]+random.random()*math.pi2*self.move_mutation_multiplier)%1.
+#					specimen[i1][2] =  (specimen[i1][2]+random.random()*self.move_mutation_multiplier)%1.
+#			self.population += [ [None,specimen] ]	
+#
+#	
+#	def test_spiece_drop_down(self,spiece) : 
+#		surface = Polygon()
+#		for p in spiece :
+#			time_ = time.time()
+#			poly = Polygon(copy.deepcopy(self.polygons[p[0]].polygon))
+#			poly.rotate(p[1]*math.pi2)
+#			w = poly.width()
+#			left = poly.bounds()[0]
+#			poly.move( -left + (self.width-w)*p[2],0)
+#			poly.drop_down(surface)
+#			surface.add(poly)
+#		return surface
+#
+#	
+#	def test(self,test_function): 
+#		for i in range(len(self.population)) :
+#			if self.population[i][0] == None :
+#				surface = test_function(self.population[i][1])
+#				b = surface.bounds()
+#				self.population[i][0] = (b[3]-b[1])*(b[2]-b[0])
+#		self.population.sort()				 
+#
+#
+#	def test_spiece_centroid(self,spiece) : 
+#		poly = Polygon(copy.deepcopy(self.polygons[spiece[0][0]].polygon))
+#		poly.rotate(spiece[0][2]*math.pi2)
+#		surface  = Polygon(poly.polygon)
+#		i = 0
+#		for p in spiece[1:] :
+#			i += 1
+#			poly = Polygon(copy.deepcopy(self.polygons[p[0]].polygon))
+#			poly.rotate(p[2]*math.pi2)
+#			c = surface.centroid()
+#			c1 = poly.centroid()
+#			direction = [math.cos(p[1]*math.pi2), -math.sin(p[1]*math.pi2)]
+#			poly.move(c[0]-c1[0]-direction[0]*100,c[1]-c1[1]-direction[1]*100)
+#			poly.drop_into_direction(direction,surface)
+#			surface.add(poly)
+#		return surface
+#		
+#		
+#		
+#		#surface.draw()
 
 		
 ################################################################################
@@ -2610,7 +2610,7 @@ class Laserengraver(inkex.Effect):
 ################################################################################
 	def generate_gcode(self, curve, intensity = 0, feedrate = 0):
 		print ("generate_gcode()")
-		for p in curve : print "  * ",p
+		#for p in curve : print "  * ",p
 		if feedrate == 0 : feedrate = self.tools['penetration feed']
 		tool = self.tools
 		print_("Tool in g-code generator: " + str(tool))
@@ -2845,10 +2845,8 @@ class Laserengraver(inkex.Effect):
 		styles = simplestyle.parseStyle(node.get("style"))
 		fillColor = styles["fill"]
 		if fillColor != "none" and fillColor != '' and self.options.fill_areas == True :
-			
 			ig = infill_generator.InfillGenerator( self.document, [node] )
 			fillings = ig.effect(self.options.fill_spacing, self.options.cross_fill, self.options.fill_angle)
-			print "fillings", fillings
 			self.filled_areas[layer] = self.filled_areas[layer] + fillings if layer in self.filled_areas else fillings
 
 
@@ -2919,7 +2917,7 @@ class Laserengraver(inkex.Effect):
 						d = simplepath.formatPath( a )
 						i.set("d", d)
 						
-						handle_node(i, layer)
+						self.handle_node(i, layer)
 						
 					# line
 					elif i.tag == inkex.addNS( 'line', 'svg' ) or i.tag == 'line':
@@ -3205,15 +3203,23 @@ class Laserengraver(inkex.Effect):
 				curve = self.parse_curve(p, layer)
 				#self.draw_curve(curve, layer, biarc_group)
 				intensity = self.options.laser_intensity
+				gcode_outlines += "; Layer: " + layer.get('id') + ", outline of " + path.get('id') + "\n"
 				gcode_outlines += self.generate_gcode(curve, intensity)
 
 			if layer in self.filled_areas :
 				for fillpath in self.filled_areas[layer] :		
 					style = simplestyle.parseStyle(fillpath["style"])
 					intensity = color2intensity.color2intensity(style["stroke"])
-		
+					
 					csp = cubicsuperpath.parsePath(fillpath.get("d"))
+
+					# apply layer transform (whyever it is missing here?!)
+					matrix = simpletransform.parseTransform (layer.get('transform'))
+					simpletransform.applyTransformToPath(matrix, csp)
+					
+					# this parse_curve should do the transformation job originally
 					crve = self.parse_curve(csp, layer)
+					gcode_fillings += "; Layer: " + layer.get('id') + ", fill of " + fillpath.get('id') + "\n"
 					gcode_fillings += self.generate_gcode(crve, intensity)
 			
 		self.export_gcode(gcode_fillings + "\n\n" + gcode_outlines)
@@ -3250,6 +3256,7 @@ class Laserengraver(inkex.Effect):
 		if self.options.unit == "G21 (All units in mm)" : 
 			points = [[0.,0.,0.],[100.,0.,0.],[0.,100.,0.]]
 			orientation_scale = 3.5433070660
+			###orientation_scale = 1 # easier debugging
 			print_("orientation_scale < 0 ===> switching to mm units=%0.10f"%orientation_scale )
 		elif self.options.unit == "G20 (All units in inches)" :
 			points = [[0.,0.,0.],[5.,0.,0.],[0.,5.,0.]]

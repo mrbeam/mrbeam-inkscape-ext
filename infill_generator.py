@@ -1043,11 +1043,8 @@ class InfillGenerator():
 		# pointer as the dictionary key under which to save the hatch
 		# fills for that node.
 
-		print "infill hatches", self.hatches
-
 		fillings = []
 		for key in self.hatches:
-			print "infill hatches loop"
 			path = ''
 			direction = True
 			if self.transforms.has_key( key ):
@@ -1101,7 +1098,7 @@ class InfillGenerator():
 						( pt2[0], pt2[1], pt1[0] - pt2[0], pt1[1] - pt2[1] )
 				direction = not direction
 			fillment = self.joinFillsWithNode( key, stroke_width, color, path[:-1] )
-			
+			fillment['id'] = key.get('id')
 			fillings.append(fillment)
 
 		#inkex.errormsg("Elapsed CPU time was %f" % (time.clock()-self.t0))
