@@ -14,7 +14,7 @@
    id="svg2"
    version="1.1"
    inkscape:version="0.48.3.1 r9886"
-   sodipodi:docname="path.svg">
+   sodipodi:docname="rectangle.svg">
   <defs
      id="defs4" />
   <sodipodi:namedview
@@ -26,14 +26,14 @@
      inkscape:pageshadow="2"
      inkscape:zoom="0.98994949"
      inkscape:cx="254.34242"
-     inkscape:cy="840.46091"
+     inkscape:cy="233.35923"
      inkscape:document-units="px"
      inkscape:current-layer="layer1"
      showgrid="false"
      inkscape:window-width="1187"
      inkscape:window-height="696"
-     inkscape:window-x="153"
-     inkscape:window-y="177"
+     inkscape:window-x="409"
+     inkscape:window-y="139"
      inkscape:window-maximized="0"
      units="mm" />
   <metadata
@@ -52,11 +52,13 @@
      inkscape:label="Layer 1"
      inkscape:groupmode="layer"
      id="layer1"
-     transform="translate(0,0)">
+     transform="translate(0,-2.5390623e-6)">
+
     <path
-       style="fill:#00ff00;stroke:#000000"
-       d="M 55.5 57.875 L 55.5 162.4375 L 159.90625 162.4375 L 179.375 188.1875 L 179.375 162.4375 L 201.09375 162.4375 L 201.09375 57.875 L 55.5 57.875 z M 168.6875 76.625 C 175.3822 76.625 180.8125 82.055298 180.8125 88.75 C 180.8125 95.444702 175.3822 100.875 168.6875 100.875 C 161.9928 100.875 156.5625 95.444702 156.5625 88.75 C 156.5625 82.055298 161.9928 76.625 168.6875 76.625 z "
-	   transform="translate(400,-300)"
-       id="polygon8" />
+       style="color:#000000;fill:#ff0000;fill-opacity:1;fill-rule:nonzero;stroke:#00ffff;stroke-width:1;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-opacity:1;stroke-dashoffset:0;marker:none;visibility:visible;display:inline;overflow:visible;enable-background:accumulate"
+       d="m 35.933071,999.71257 69.866139,0 0,16.71653 -69.866139,0 z"
+       id="rect2985"
+       inkscape:connector-curvature="0" />
+
   </g>
 </svg>
