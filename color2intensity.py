@@ -13,7 +13,7 @@ def color2intensity(colorString, minIntensity=0, maxIntensity=1000):
 	else:
 		rgb = webcolors.hex_to_rgb(colorString)
 		gray = 0.2989 * rgb[0] + 0.5870 * rgb[1] + 0.1140 * rgb[2]
-		intensity = gray/255 * (maxIntensity-minIntensity) + minIntensity
+		intensity = (1-gray/255) * (maxIntensity-minIntensity) + minIntensity
 		return intensity
 
 
