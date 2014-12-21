@@ -28,9 +28,16 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 ###
 Laserengraver_current_version = "0.01"
 
-import inkex, simplestyle, simplepath
-import cubicsuperpath, simpletransform, bezmisc
-import color2intensity, infill_generator, machine_settings
+import inkex
+import simplestyle
+import simplepath
+import cubicsuperpath
+import simpletransform
+import bezmisc
+import color2intensity
+import infill_generator
+import machine_settings
+from img2gcode import ImageProcessor
 
 import os
 import math
@@ -2509,7 +2516,7 @@ class Laserengraver(inkex.Effect):
 
 	def get_transforms(self,g):
 		root = self.document.getroot()
-		trans = []
+		trans = [[1,0,0],[0,1,0]]
 		while (g!=root):
 			if 'transform' in g.keys():
 				t = g.get('transform')
@@ -2680,6 +2687,9 @@ class Laserengraver(inkex.Effect):
 			fillings = ig.effect(self.options.fill_spacing, self.options.cross_fill, self.options.fill_angle)
 			self.filled_areas[layer] = self.filled_areas[layer] + fillings if layer in self.filled_areas else fillings
 
+	def handle_image(self, imgNode, layer):
+		self.images[layer] = self.images[layer] + imgNode if layer in self.images else [imgNode]
+		
 
 ################################################################################
 ###
@@ -2690,7 +2700,7 @@ class Laserengraver(inkex.Effect):
 		print "get_info"
 		self.selected_paths = {}
 		self.paths = {}
-		self.images = []
+		self.images = {}
 		self.orientation_points = {}
 		self.layers = [self.document.getroot()]
 		self.Zcoordinates = {}
@@ -2839,8 +2849,8 @@ class Laserengraver(inkex.Effect):
 
 					# image
 					elif i.tag == inkex.addNS('image','svg'):
-						self.images += i
 						print_("added image " + i.get("width") + 'x' + i.get("height") + "@" + i.get("x")+","+i.get("y"))
+						self.handle_image(i, layer)
 					
 					# group
 					elif i.tag == inkex.addNS("g",'svg'):
@@ -3006,6 +3016,7 @@ class Laserengraver(inkex.Effect):
 		gcode = ""
 		gcode_outlines = ""
 		gcode_fillings = ""
+		gcode_images = ""
 
 		biarc_group = inkex.etree.SubElement( self.selected_paths.keys()[0] if len(self.selected_paths.keys())>0 else self.layers[0], inkex.addNS('g','svg') )
 		print_(("self.layers=",self.layers))
@@ -3052,7 +3063,25 @@ class Laserengraver(inkex.Effect):
 					gcode_fillings += "; Layer: " + layer.get('id') + ", fill of " + fillpath.get('id') + "\n"
 					gcode_fillings += self.generate_gcode(crve, intensity)
 			
-		self.export_gcode(gcode_fillings + "\n\n" + gcode_outlines)
+			if layer in self.images :
+				for imgNode in self.images[layer] :
+					x = float(imgNode.get("x"))
+					y = float(imgNode.get("y"))
+					w = float(imgNode.get("width"))
+					h = float(imgNode.get("height"))
+					upperLeft = [x, y]
+					lowerRight = [x + w, y + h]
+					data = imgNode.get(inkex.addNS('href', 'xlink'))
+					mat = self.get_transforms(imgNode)
+					simpletransform.applyTransformToPoint(mat, upperLeft)
+					simpletransform.applyTransformToPoint(mat, lowerRight)
+					w = lowerRight[0] - upperLeft[0]
+					h = lowerRight[1] - upperLeft[1]
+					ip = ImageProcessor()
+					gcode = ip.base64_to_gcode(data, w, h, upperLeft[0], upperLeft[1])
+					gcode_images += gcode
+
+		self.export_gcode(gcode_images + "\n\n" + gcode_fillings + "\n\n" + gcode_outlines)
 
 ################################################################################
 ###

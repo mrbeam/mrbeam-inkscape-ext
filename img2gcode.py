@@ -78,7 +78,6 @@ class ImageProcessor():
 		direction_positive = True;
 		gcode = 'G0 X'+self.twodigits(x)+' Y'+self.twodigits(y) + '\nF ' + str(self.feedrate) + '\n' # move to img start & set feedrate
 		
-		
 		(width, height) = img.size
 		
 		# iterate line by line
@@ -87,7 +86,7 @@ class ImageProcessor():
 			row_pos_y = y + row * self.beam
 
 			# proceed to next line 
-			if(row_pos_y > y): gcode += 'G0 Y'+ self.twodigits(row_pos_y)+'; next line\n'
+			if(row_pos_y > y): gcode += 'G0 Y'+ self.twodigits(row_pos_y)+'; next line\n' # TODO ... skip empty lines
 			
 			
 			# back and forth
@@ -100,7 +99,7 @@ class ImageProcessor():
 				intensity = self.get_intensity(px)
 
 				if(intensity != lastInt ):
-					if(i != pixelrange[0]): # dont move after new line
+					if(i != pixelrange[0]): # don't move after new line
 						xpos = x + self.beam * i if (direction_positive) else (i+1) # calculate position; backward lines need to be shifted by +1 beam diameter
 						if(lastInt <= 0): gcode += "G0 X" + self.twodigits(xpos) + "\n" # fast skipping whitespace 
 						else: gcode += "G1 X" + self.twodigits(xpos) + "\n" # move until next intensity
@@ -122,7 +121,7 @@ class ImageProcessor():
 
 		
 
-	def blob_to_gcode(self, base64str, w,h, x,y):
+	def base64_to_gcode(self, base64str, w,h, x,y):
 		
 		# remove "data:image/png;base64," and add a "\n" in front to get proper base64 encoding
 		if(base64str.startswith("data:")):
@@ -176,5 +175,5 @@ if __name__ == "__main__":
 	ip = ImageProcessor(options.feedrate, options.contrast, options.sharpening, options.beam_diameter, options.intensity_black, options.intensity_white, material = "default")
 	path = args[0]
 	gcode = ip.img_to_gcode(path, options.width, options.height, options.x, options.y)
-	#gcode = ip.blob_to_gcode(base64img, options.width, options.height, options.x, options.y)
+	#gcode = ip.base64_to_gcode(base64img, options.width, options.height, options.x, options.y)
 	print gcode
