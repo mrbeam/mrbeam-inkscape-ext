@@ -86,19 +86,24 @@ class ImageProcessor():
 			row_pos_y = y + row * self.beam
 
 			# proceed to next line 
-			if(row_pos_y > y): gcode += 'G0 Y'+ self.twodigits(row_pos_y)+'; next line\n' # TODO ... skip empty lines
+			nextline = 'G0 Y'+ self.twodigits(row_pos_y)+'; next line\n' # TODO ... skip empty lines
 			
 			
 			# back and forth
 			pixelrange = range(0, width) if(direction_positive) else range(width-1, -1, -1)
 
 			lastInt = 0
+			nextlineNecessary = True
 			for i in pixelrange:
 				px = pix[i, row]
 				intensity = self.get_intensity(px)
 
 				if(intensity != lastInt ):
 					if(i != pixelrange[0]): # don't move after new line
+						if(nextlineNecessary):
+							gcode += nextline
+							nextlineNecessary = False
+							
 						xpos = x + self.beam * (i if (direction_positive) else (i+1)) # calculate position; backward lines need to be shifted by +1 beam diameter
 						if(lastInt <= 0): gcode += "G0 X" + self.twodigits(xpos) + "\n" # fast skipping whitespace 
 						else: gcode += "G1 X" + self.twodigits(xpos) + "\n" # move until next intensity
@@ -112,8 +117,9 @@ class ImageProcessor():
 			if(lastInt > 0):
 				end_of_line = x + pixelrange[-1] * self.beam 
 				gcode += "G1 X" + self.twodigits(end_of_line) + "\n" # finish non-white line
-				
-			gcode += "M3S0\n\n" # end of pixel line
+			
+			if(nextlineNecessary == False):
+				gcode += "M3S0\n\n" # end of pixel line
 			direction_positive = not direction_positive
 			
 		return gcode
@@ -179,7 +185,7 @@ if __name__ == "__main__":
 	
 	header = ""
 	footer = ""
-	if(options.noheaders == "true"): 
+	if(options.noheaders == "false"): 
 		header = '''
 $H
 G92X0Y0Z0
