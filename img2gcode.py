@@ -94,13 +94,12 @@ class ImageProcessor():
 
 			lastInt = 0
 			for i in pixelrange:
-				
 				px = pix[i, row]
 				intensity = self.get_intensity(px)
 
 				if(intensity != lastInt ):
 					if(i != pixelrange[0]): # don't move after new line
-						xpos = x + self.beam * i if (direction_positive) else (i+1) # calculate position; backward lines need to be shifted by +1 beam diameter
+						xpos = x + self.beam * (i if (direction_positive) else (i+1)) # calculate position; backward lines need to be shifted by +1 beam diameter
 						if(lastInt <= 0): gcode += "G0 X" + self.twodigits(xpos) + "\n" # fast skipping whitespace 
 						else: gcode += "G1 X" + self.twodigits(xpos) + "\n" # move until next intensity
 						
@@ -169,6 +168,7 @@ if __name__ == "__main__":
 	opts.add_option("",   "--intensity-black", type="int", default="1000", help="intensity for black pixels, default 1000", dest="intensity_black")
 	opts.add_option("-c", "--contrast", type="float", help="contrast adjustment: 0.0 => gray, 1.0 => unchanged, >1.0 => intensified", default=1.0, dest="contrast")
 	opts.add_option("", "--sharpening", type="float", help="image sharpening: 0.0 => blurred, 1.0 => unchanged, >1.0 => sharpened", default=1.0, dest="sharpening")
+	opts.add_option("", "--no-headers", type="string", help="omits Mr Beam start and end sequences", default="false", dest="noheaders")
 
 	(options, args) = opts.parse_args()
 	
@@ -176,4 +176,22 @@ if __name__ == "__main__":
 	path = args[0]
 	gcode = ip.img_to_gcode(path, options.width, options.height, options.x, options.y)
 	#gcode = ip.base64_to_gcode(base64img, options.width, options.height, options.x, options.y)
-	print gcode
+	
+	header = ""
+	footer = ""
+	if(options.noheaders == "true"): 
+		header = '''
+$H
+G92X0Y0Z0
+G90
+M08
+G21
+'''
+		footer = '''
+M05S0
+G0 X0.000 Y0.000
+M09
+M02
+'''
+
+	print header + gcode + footer
