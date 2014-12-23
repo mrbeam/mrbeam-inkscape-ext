@@ -83,7 +83,7 @@ class ImageProcessor():
 		# iterate line by line
 		pix = img.load()
 		for row in range(0,height):
-			row_pos_y = y + row * self.beam
+			row_pos_y = y + (height - row) * self.beam # inverse y-coordinate as images have 0x0 at left top, mr beam at left bottom 
 
 			# proceed to next line 
 			nextline = 'G0 Y'+ self.twodigits(row_pos_y)+'; next line\n' # TODO ... skip empty lines
