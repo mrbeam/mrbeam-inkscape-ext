@@ -3111,11 +3111,12 @@ class Laserengraver(inkex.Effect):
             translate = [0,0]
 
         # doc height in pixels (38 mm == 134.64566px)
-        doc_height = inkex.unittouu(self.document.getroot().get('height'))
+        h = self.getDocumentHeight();
+        doc_height = inkex.unittouu(h)
 
-        if self.document.getroot().get('height') == "100%" :
-            doc_height = 1052.3622047
-            print_("Overruding height from 100 percents to %s" % doc_height)
+        #if self.document.getroot().get('height') == "100%" :
+        #    doc_height = 1052.3622047
+        #    print_("Overruding height from 100 percents to %s" % doc_height)
             
         print_("Document height: " + str(doc_height));
             
