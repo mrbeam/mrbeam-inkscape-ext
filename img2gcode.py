@@ -28,13 +28,14 @@ import cStringIO
 
 class ImageProcessor():
 
-	def __init__( self , feedrate = 500, contrast = 1.0, sharpening = 1.0, beam_diameter = 0.25, intensity_black = 1000, intensity_white = 0, material = "default"):
+	def __init__( self , feedrate = 500, seekrate = 5000, contrast = 1.0, sharpening = 1.0, beam_diameter = 0.25, intensity_black = 1000, intensity_white = 0, material = "default"):
 		
 		self.beam = beam_diameter
 		self.intensity_black = intensity_black
 		self.intensity_white = intensity_white
 		self.material = material
 		self.feedrate = feedrate
+		self.seekrate = seekrate
 		self.contrastFactor = contrast
 		self.sharpeningFactor = sharpening
 
@@ -76,7 +77,7 @@ class ImageProcessor():
 
 	def generate_gcode(self, img, x,y):
 		direction_positive = True;
-		gcode = 'G0 X'+self.twodigits(x)+' Y'+self.twodigits(y) + '\nF ' + str(self.feedrate) + '\n' # move to img start & set feedrate
+		gcode = 'M3S0\nG0 X'+self.twodigits(x)+' Y'+self.twodigits(y) + ' S0\nF ' + str(self.feedrate) + '\n' # move to img start & set feedrate
 		
 		(width, height) = img.size
 		
@@ -86,7 +87,7 @@ class ImageProcessor():
 			row_pos_y = y + (height - row) * self.beam # inverse y-coordinate as images have 0x0 at left top, mr beam at left bottom 
 
 			# proceed to next line 
-			nextline = 'G0 Y'+ self.twodigits(row_pos_y)+'; next line\n' # TODO ... skip empty lines
+			nextline = 'G0 Y'+ self.twodigits(row_pos_y)+' S0\n' #; next line # TODO ... skip empty lines
 			
 			
 			# back and forth
@@ -105,10 +106,10 @@ class ImageProcessor():
 							nextlineNecessary = False
 							
 						xpos = x + self.beam * (i if (direction_positive) else (i+1)) # calculate position; backward lines need to be shifted by +1 beam diameter
-						if(lastInt <= 0): gcode += "G0 X" + self.twodigits(xpos) + "\n" # fast skipping whitespace 
-						else: gcode += "G1 X" + self.twodigits(xpos) + "\n" # move until next intensity
+						if(lastInt <= 0): gcode += "G0 X" + self.twodigits(xpos) + " S0\n" # fast skipping whitespace 
+						else: gcode += "G1 X" + self.twodigits(xpos) + " S"+str(lastInt)+ "\n" # move until next intensity
 						
-					gcode += "M3S" + str(intensity) + "\n" # set new intensity
+					#gcode += "M3S" + str(intensity) + "\n" # set new intensity
 				else:
 					pass # combine equal intensity values to one move
 					
@@ -116,10 +117,10 @@ class ImageProcessor():
 			
 			if(lastInt > 0):
 				end_of_line = x + pixelrange[-1] * self.beam 
-				gcode += "G1 X" + self.twodigits(end_of_line) + "\n" # finish non-white line
+				gcode += "G1 X" + self.twodigits(end_of_line) + " S"+str(lastInt)+ "\n" # finish non-white line
 			
 			if(nextlineNecessary == False):
-				gcode += "M3S0\n\n" # end of pixel line
+				gcode += "M3S0\n" # end of pixel line
 			direction_positive = not direction_positive
 			
 		return gcode
@@ -170,6 +171,7 @@ if __name__ == "__main__":
 	opts.add_option("",   "--height", type="float", default=100, help="height of the image in mm", dest="height")
 	opts.add_option("-d", "--beam_diameter", type="float", help="laser beam diameter, default 0.25mm", default=0.25, dest="beam_diameter")
 	opts.add_option("-s", "--speed", type="float", help="engraving speed, default 1000mm/min", default=1000, dest="feedrate")
+	opts.add_option("", "--travel-speed", type="float", help="travel speed on position moves, default 5000mm/min", default=5000, dest="seekrate")
 	opts.add_option("",   "--intensity-white", type="int", default="0", help="intensity for white pixels, default 0", dest="intensity_white")
 	opts.add_option("",   "--intensity-black", type="int", default="1000", help="intensity for black pixels, default 1000", dest="intensity_black")
 	opts.add_option("-c", "--contrast", type="float", help="contrast adjustment: 0.0 => gray, 1.0 => unchanged, >1.0 => intensified", default=1.0, dest="contrast")
@@ -178,7 +180,7 @@ if __name__ == "__main__":
 
 	(options, args) = opts.parse_args()
 	
-	ip = ImageProcessor(options.feedrate, options.contrast, options.sharpening, options.beam_diameter, options.intensity_black, options.intensity_white, material = "default")
+	ip = ImageProcessor(options.feedrate, options.seekrate, options.contrast, options.sharpening, options.beam_diameter, options.intensity_black, options.intensity_white, material = "default")
 	path = args[0]
 	gcode = ip.img_to_gcode(path, options.width, options.height, options.x, options.y)
 	#gcode = ip.base64_to_gcode(base64img, options.width, options.height, options.x, options.y)
@@ -192,10 +194,11 @@ G92X0Y0Z0
 G90
 M08
 G21
+G0 F5000
 '''
 		footer = '''
 M05S0
-G0 X0.000 Y0.000
+G0 X0.000 Y0.000 F5000
 M09
 M02
 '''
