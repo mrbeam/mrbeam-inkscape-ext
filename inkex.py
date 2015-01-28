@@ -142,6 +142,25 @@ class Effect:
         self.original_document = copy.deepcopy(self.document)
         stream.close()
 
+    def getDocumentHeight(self):
+        height = self.document.getroot().get('height')
+        if(height == None):
+            print("height property not set in root node, fetching from viewBox attribute")
+            vbox = self.document.getroot().get('viewBox')
+            if(vbox != None ):
+                parts = vbox.split(' ')
+                if(len(parts) == 4):
+                    height = parts[3]
+
+        if(height == "100%"):
+            height = 1052.3622047
+            print("Overriding height from 100 percents to %s" % height)
+
+        if(height == None):
+            height = 1052.3622047
+            print("Height not set. Assuming height is %s" % height)
+        return str(height)
+
     def getposinlayer(self):
         #defaults
         self.current_layer = self.document.getroot()
@@ -156,7 +175,8 @@ class Effect:
 
         xattr = self.document.xpath('//sodipodi:namedview/@inkscape:cx', namespaces=NSS)
         yattr = self.document.xpath('//sodipodi:namedview/@inkscape:cy', namespaces=NSS)
-        doc_height = unittouu(self.document.getroot().get('height'))
+        height = self.getDocumentHeight();
+        doc_height = unittouu(height)
         if xattr and yattr:
             x = xattr[0]
             y = yattr[0]

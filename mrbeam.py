@@ -2266,7 +2266,7 @@ class Laserengraver(inkex.Effect):
 		self.OptionParser.add_option("",   "--engraving-laser-speed",		action="store", type="int",		 dest="engraving_laser_speed", default="30",					help="Speed of laser during engraving")
 		self.OptionParser.add_option("",   "--laser-intensity",		action="store", type="int",		 dest="laser_intensity", default="1000",					help="Speed of laser during engraving")
 		self.OptionParser.add_option("",   "--suppress-all-messages",		 action="store", type="inkbool",	 dest="suppress_all_messages", default=True,				help="Check this to hide any messages during g-code generation")
-		self.OptionParser.add_option("",   "--create-log",					action="store", type="inkbool",	 dest="log_create_log", default=False,				help="Create log files")
+		self.OptionParser.add_option("",   "--create-log",					action="store", type="inkbool",	 dest="log_create_log", default=True,				help="Create log files")
 		self.OptionParser.add_option("",   "--log-filename",				  action="store", type="string",	  dest="log_filename", default='',					help="Create log files")
 		self.OptionParser.add_option("",   "--engraving-draw-calculation-paths",action="store", type="inkbool",	dest="engraving_draw_calculation_paths", default=False,		help="Draw additional graphics to debug engraving path")
 		self.OptionParser.add_option("",   "--unit",						action="store", type="string",		 dest="unit", default="G21 (All units in mm)",		help="Units")
@@ -2680,12 +2680,13 @@ class Laserengraver(inkex.Effect):
 		if node.get("id") in self.selected :
 			self.selected_paths[layer] = self.selected_paths[layer] + [node] if layer in self.selected_paths else [node]  
 		
-		styles = simplestyle.parseStyle(node.get("style"))
-		fillColor = styles["fill"]
-		if fillColor != "none" and fillColor != '' and self.options.fill_areas == True :
-			ig = infill_generator.InfillGenerator( self.document, [node] )
-			fillings = ig.effect(self.options.fill_spacing, self.options.cross_fill, self.options.fill_angle)
-			self.filled_areas[layer] = self.filled_areas[layer] + fillings if layer in self.filled_areas else fillings
+		if self.options.fill_areas == True:
+			styles = simplestyle.parseStyle(node.get("style"))
+			if "fill" in styles and styles["fill"] != "none" and styles["fill"] != '' :
+				#fillColor = styles["fill"]
+				ig = infill_generator.InfillGenerator( self.document, [node] )
+				fillings = ig.effect(self.options.fill_spacing, self.options.cross_fill, self.options.fill_angle)
+				self.filled_areas[layer] = self.filled_areas[layer] + fillings if layer in self.filled_areas else fillings
 
 	def handle_image(self, imgNode, layer):
 		self.images[layer] = self.images[layer] + imgNode if layer in self.images else [imgNode]
@@ -3045,7 +3046,9 @@ class Laserengraver(inkex.Effect):
 				curve = self.parse_curve(p, layer)
 				#self.draw_curve(curve, layer, biarc_group)
 				intensity = self.options.laser_intensity
-				gcode_outlines += "; Layer: " + layer.get('id') + ", outline of " + path.get('id') + "\n"
+				layerId = layer.get('id') or '?'
+				pathId = path.get('id') or '?'
+				gcode_outlines += "; Layer: " + layerId + ", outline of " + pathId + "\n"
 				gcode_outlines += self.generate_gcode(curve, intensity)
 
 			if layer in self.filled_areas :
@@ -3104,12 +3107,13 @@ class Laserengraver(inkex.Effect):
 			translate = [0,0]
 
 		# doc height in pixels (38 mm == 134.64566px)
-		doc_height = inkex.unittouu(self.document.getroot().get('height'))
+		h = self.getDocumentHeight();
+		doc_height = inkex.unittouu(h)
 
-		if self.document.getroot().get('height') == "100%" :
-			doc_height = 1052.3622047
-			print_("Overruding height from 100 percents to %s" % doc_height)
-			
+		#if self.document.getroot().get('height') == "100%" :
+		#	doc_height = 1052.3622047
+		#	print_("Overruding height from 100 percents to %s" % doc_height)
+
 		print_("Document height: " + str(doc_height));
 			
 		if self.options.unit == "G21 (All units in mm)" : 
