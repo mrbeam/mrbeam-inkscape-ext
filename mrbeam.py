@@ -28,8 +28,16 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 ###
 Laserengraver_current_version = "0.01"
 
-import inkex, simplestyle, simplepath
-import cubicsuperpath, simpletransform, bezmisc
+import inkex
+import simplestyle
+import simplepath
+import cubicsuperpath
+import simpletransform
+import bezmisc
+import color2intensity
+import infill_generator
+import machine_settings
+from img2gcode import ImageProcessor
 
 import os
 import math
@@ -1936,477 +1944,308 @@ def biarc_curve_clip_at_l(curve, l, clip_type = "strict") :
 ###        Polygon class
 ################################################################################
 class Polygon:
-    def __init__(self, polygon=None):
-        self.polygon = [] if polygon==None else polygon[:]
-    
-    
-    def move(self, x, y) :
-        for i in range(len(self.polygon)) :
-            for j in range(len(self.polygon[i])) :
-                self.polygon[i][j][0] += x
-                self.polygon[i][j][1] += y
-    
-    
-    def bounds(self) : 
-        minx,miny,maxx,maxy = 1e400, 1e400, -1e400, -1e400
-        for poly in self.polygon :
-            for p in poly :
-                if minx > p[0] : minx = p[0]
-                if miny > p[1] : miny = p[1]
-                if maxx < p[0] : maxx = p[0]
-                if maxy < p[1] : maxy = p[1]
-        return minx*1,miny*1,maxx*1,maxy*1        
-    
-    
-    def width(self):
-        b = self.bounds()
-        return b[2]-b[0]
-    
-    
-    def rotate_(self,sin,cos) :
-        for i in range(len(self.polygon)) :
-            for j in range(len(self.polygon[i])) :
-                x,y = self.polygon[i][j][0], self.polygon[i][j][1] 
-                self.polygon[i][j][0] = x*cos - y*sin
-                self.polygon[i][j][1] = x*sin + y*cos
-        
-    
-    def rotate(self, a):
-        cos, sin = math.cos(a), math.sin(a)
-        self.rotate_(sin,cos)
-    
-            
-    def drop_into_direction(self, direction, surface) :
-        # Polygon is a list of simple polygons
-        # Surface is a polygon + line y = 0 
-        # Direction is [dx,dy]  
-        if len(self.polygon) == 0 or len(self.polygon[0])==0 : return
-        if direction[0]**2 + direction[1]**2 <1e-10 : return
-        direction = normalize(direction)
-        sin,cos = direction[0], -direction[1]
-        self.rotate_(-sin,cos)
-        surface.rotate_(-sin,cos)
-        self.drop_down(surface, zerro_plane = False)
-        self.rotate_(sin,cos)
-        surface.rotate_(sin,cos)
-        
-            
-    def centroid(self):
-        centroids = []
-        sa = 0
-        for poly in self.polygon:
-            cx,cy,a = 0,0,0
-            for i in range(len(poly)):
-                [x1,y1],[x2,y2] = poly[i-1],poly[i]
-                cx += (x1+x2)*(x1*y2-x2*y1)
-                cy += (y1+y2)*(x1*y2-x2*y1)
-                a  += (x1*y2-x2*y1)
-            a *= 3.
-            if abs(a)>0 :
-                cx /= a
-                cy /= a
-                sa += abs(a)
-                centroids += [ [cx,cy,a] ]
-        if sa == 0 : return    [0.,0.]
-        cx,cy = 0.,0.
-        for c in centroids :
-            cx += c[0]*c[2]
-            cy += c[1]*c[2]
-        cx /= sa
-        cy /= sa
-        return [cx,cy]
+	def __init__(self, polygon=None):
+		self.polygon = [] if polygon==None else polygon[:]
+	
+	
+	def move(self, x, y) :
+		for i in range(len(self.polygon)) :
+			for j in range(len(self.polygon[i])) :
+				self.polygon[i][j][0] += x
+				self.polygon[i][j][1] += y
+	
+	
+	def bounds(self) : 
+		minx,miny,maxx,maxy = 1e400, 1e400, -1e400, -1e400
+		for poly in self.polygon :
+			for p in poly :
+				if minx > p[0] : minx = p[0]
+				if miny > p[1] : miny = p[1]
+				if maxx < p[0] : maxx = p[0]
+				if maxy < p[1] : maxy = p[1]
+		return minx*1,miny*1,maxx*1,maxy*1		
+	
+	
+	def width(self):
+		b = self.bounds()
+		return b[2]-b[0]
+	
+	
+	def rotate_(self,sin,cos) :
+		for i in range(len(self.polygon)) :
+			for j in range(len(self.polygon[i])) :
+				x,y = self.polygon[i][j][0], self.polygon[i][j][1] 
+				self.polygon[i][j][0] = x*cos - y*sin
+				self.polygon[i][j][1] = x*sin + y*cos
+		
+	
+	def rotate(self, a):
+		cos, sin = math.cos(a), math.sin(a)
+		self.rotate_(sin,cos)
+	
+			
+	def drop_into_direction(self, direction, surface) :
+		# Polygon is a list of simple polygons
+		# Surface is a polygon + line y = 0 
+		# Direction is [dx,dy]  
+		if len(self.polygon) == 0 or len(self.polygon[0])==0 : return
+		if direction[0]**2 + direction[1]**2 <1e-10 : return
+		direction = normalize(direction)
+		sin,cos = direction[0], -direction[1]
+		self.rotate_(-sin,cos)
+		surface.rotate_(-sin,cos)
+		self.drop_down(surface, zerro_plane = False)
+		self.rotate_(sin,cos)
+		surface.rotate_(sin,cos)
+		
+			
+	def centroid(self):
+		centroids = []
+		sa = 0
+		for poly in self.polygon:
+			cx,cy,a = 0,0,0
+			for i in range(len(poly)):
+				[x1,y1],[x2,y2] = poly[i-1],poly[i]
+				cx += (x1+x2)*(x1*y2-x2*y1)
+				cy += (y1+y2)*(x1*y2-x2*y1)
+				a  += (x1*y2-x2*y1)
+			a *= 3.
+			if abs(a)>0 :
+				cx /= a
+				cy /= a
+				sa += abs(a)
+				centroids += [ [cx,cy,a] ]
+		if sa == 0 : return	[0.,0.]
+		cx,cy = 0.,0.
+		for c in centroids :
+			cx += c[0]*c[2]
+			cy += c[1]*c[2]
+		cx /= sa
+		cy /= sa
+		return [cx,cy]
 
-            
-    def drop_down(self, surface, zerro_plane = True) :
-        # Polygon is a list of simple polygons
-        # Surface is a polygon + line y = 0 
-        # Down means min y (0,-1)  
-        if len(self.polygon) == 0 or len(self.polygon[0])==0 : return
-        # Get surface top point
-        top = surface.bounds()[3]
-        if zerro_plane : top = max(0, top)
-        # Get polygon bottom point
-        bottom = self.bounds()[1]
-        self.move(0, top - bottom + 10)        
-        # Now get shortest distance from surface to polygon in positive x=0 direction
-        # Such distance = min(distance(vertex, edge)...)  where edge from surface and 
-        # vertex from polygon and vice versa...
-        dist = 1e300
-        for poly in surface.polygon :
-            for i in range(len(poly)) :
-                for poly1 in self.polygon :
-                    for i1 in range(len(poly1)) :
-                        st,end = poly[i-1], poly[i] 
-                        vertex = poly1[i1]
-                        if st[0]<=vertex[0]<= end[0] or end[0]<=vertex[0]<=st[0] :
-                            if st[0]==end[0] : d = min(vertex[1]-st[1],vertex[1]-end[1])
-                            else : d = vertex[1] - st[1] - (end[1]-st[1])*(vertex[0]-st[0])/(end[0]-st[0]) 
-                            if dist > d  : dist = d
-                        # and vice versa just change the sign because vertex now under the edge
-                        st,end = poly1[i1-1], poly1[i1] 
-                        vertex = poly[i]
-                        if st[0]<=vertex[0]<=end[0] or end[0]<=vertex[0]<=st[0] :
-                            if st[0]==end[0] : d = min(- vertex[1]+st[1],-vertex[1]+end[1])
-                            else : d =  - vertex[1] + st[1] + (end[1]-st[1])*(vertex[0]-st[0])/(end[0]-st[0]) 
-                            if dist > d  : dist = d
-        
-        if zerro_plane and dist > 10 + top : dist = 10 + top 
-        #print_(dist, top, bottom)
-        #self.draw()
-        self.move(0, -dist)        
-        
-                    
-    def draw(self,color="#075",width=.1) :
-        for poly in self.polygon :
-            csp_draw( [csp_subpath_line_to([],poly+[poly[0]])], color=color,width=width )
-            
-    
-    def add(self, add) :
-        if type(add) == type([]) :
-            self.polygon += add[:]
-        else :    
-            self.polygon += add.polygon[:]
+			
+	def drop_down(self, surface, zerro_plane = True) :
+		# Polygon is a list of simple polygons
+		# Surface is a polygon + line y = 0 
+		# Down means min y (0,-1)  
+		if len(self.polygon) == 0 or len(self.polygon[0])==0 : return
+		# Get surface top point
+		top = surface.bounds()[3]
+		if zerro_plane : top = max(0, top)
+		# Get polygon bottom point
+		bottom = self.bounds()[1]
+		self.move(0, top - bottom + 10)		
+		# Now get shortest distance from surface to polygon in positive x=0 direction
+		# Such distance = min(distance(vertex, edge)...)  where edge from surface and 
+		# vertex from polygon and vice versa...
+		dist = 1e300
+		for poly in surface.polygon :
+			for i in range(len(poly)) :
+				for poly1 in self.polygon :
+					for i1 in range(len(poly1)) :
+						st,end = poly[i-1], poly[i] 
+						vertex = poly1[i1]
+						if st[0]<=vertex[0]<= end[0] or end[0]<=vertex[0]<=st[0] :
+							if st[0]==end[0] : d = min(vertex[1]-st[1],vertex[1]-end[1])
+							else : d = vertex[1] - st[1] - (end[1]-st[1])*(vertex[0]-st[0])/(end[0]-st[0]) 
+							if dist > d  : dist = d
+						# and vice versa just change the sign because vertex now under the edge
+						st,end = poly1[i1-1], poly1[i1] 
+						vertex = poly[i]
+						if st[0]<=vertex[0]<=end[0] or end[0]<=vertex[0]<=st[0] :
+							if st[0]==end[0] : d = min(- vertex[1]+st[1],-vertex[1]+end[1])
+							else : d =  - vertex[1] + st[1] + (end[1]-st[1])*(vertex[0]-st[0])/(end[0]-st[0]) 
+							if dist > d  : dist = d
+		
+		if zerro_plane and dist > 10 + top : dist = 10 + top 
+		#print_(dist, top, bottom)
+		#self.draw()
+		self.move(0, -dist)		
+		
+					
+	def draw(self,color="#075",width=.1) :
+		for poly in self.polygon :
+			csp_draw( [csp_subpath_line_to([],poly+[poly[0]])], color=color,width=width )
+			
+	
+	def add(self, add) :
+		if type(add) == type([]) :
+			self.polygon += add[:]
+		else :	
+			self.polygon += add.polygon[:]
 
-    
-    def point_inside(self,p) :
-        inside = False
-        for poly in self.polygon :
-            for i in range(len(poly)):
-                st,end = poly[i-1], poly[i]
-                if p==st or p==end : return True # point is a vertex = point is on the edge
-                if st[0]>end[0] : st, end = end, st # This will be needed to check that edge if open only at rigth end
-                c = (p[1]-st[1])*(end[0]-st[0])-(end[1]-st[1])*(p[0]-st[0])
-                #print_(c)
-                if st[0]<=p[0]<end[0] : 
-                    if c<0 : 
-                        inside = not inside
-                    elif c == 0 : return True # point is on the edge
-                elif st[0]==end[0]==p[0] and (st[1]<=p[1]<=end[1] or end[1]<=p[1]<=st[1]) : # point is on the edge
-                    return True
-        return inside            
+	
+	def point_inside(self,p) :
+		inside = False
+		for poly in self.polygon :
+			for i in range(len(poly)):
+				st,end = poly[i-1], poly[i]
+				if p==st or p==end : return True # point is a vertex = point is on the edge
+				if st[0]>end[0] : st, end = end, st # This will be needed to check that edge if open only at rigth end
+				c = (p[1]-st[1])*(end[0]-st[0])-(end[1]-st[1])*(p[0]-st[0])
+				#print_(c)
+				if st[0]<=p[0]<end[0] : 
+					if c<0 : 
+						inside = not inside
+					elif c == 0 : return True # point is on the edge
+				elif st[0]==end[0]==p[0] and (st[1]<=p[1]<=end[1] or end[1]<=p[1]<=st[1]) : # point is on the edge
+					return True
+		return inside			
 
-    
-    def hull(self) :
-        # Add vertices at all self intersection points. 
-        hull = []
-        for i1 in range(len(self.polygon)):
-            poly1 = self.polygon[i1]
-            poly_ = []
-            for j1 in range(len(poly1)):
-                s, e = poly1[j1-1],poly1[j1]
-                poly_ += [s]
-                
-                # Check self intersections 
-                for j2 in range(j1+1,len(poly1)):
-                    s1, e1 = poly1[j2-1],poly1[j2]
-                    int_ = line_line_intersection_points(s,e,s1,e1)
-                    for p in int_ :
-                        if point_to_point_d2(p,s)>0.000001 and point_to_point_d2(p,e)>0.000001 : 
-                            poly_ += [p]
-                # Check self intersections with other polys  
-                for i2 in range(len(self.polygon)):
-                    if i1==i2 : continue
-                    poly2 = self.polygon[i2]
-                    for j2 in range(len(poly2)):
-                        s1, e1 = poly2[j2-1],poly2[j2]
-                        int_ = line_line_intersection_points(s,e,s1,e1)
-                        for p in int_ :
-                            if point_to_point_d2(p,s)>0.000001 and point_to_point_d2(p,e)>0.000001 : 
-                                poly_ += [p]
-            hull += [poly_]
-        # Create the dictionary containing all edges in both directions
-        edges = {}
-        for poly in self.polygon :
-            for i in range(len(poly)):
-                s,e = tuple(poly[i-1]), tuple(poly[i])
-                if (point_to_point_d2(e,s)<0.000001) : continue
-                break_s, break_e = False, False
-                for p in edges :
-                    if point_to_point_d2(p,s)<0.000001 : 
-                        break_s = True
-                        s = p
-                    if point_to_point_d2(p,e)<0.000001 : 
-                        break_e = True
-                        e = p
-                    if break_s and break_e : break
-                l = point_to_point_d(s,e)
-                if not break_s and not break_e : 
-                    edges[s] = [ [s,e,l] ]
-                    edges[e] = [ [e,s,l] ]
-                    #draw_pointer(s+e,"red","line")
-                    #draw_pointer(s+e,"red","line")
-                else : 
-                    if e in edges :    
-                        for edge in edges[e] :    
-                            if point_to_point_d2(edge[1],s)<0.000001 :
-                                break
-                        if point_to_point_d2(edge[1],s)>0.000001 :
-                            edges[e] += [ [e,s,l] ]
-                            #draw_pointer(s+e,"red","line")
-                            
-                    else : 
-                        edges[e] = [ [e,s,l] ]
-                        #draw_pointer(s+e,"green","line")
-                    if s in edges :    
-                        for edge in edges[s] :    
-                            if  point_to_point_d2(edge[1],e)<0.000001 :
-                                break
-                        if point_to_point_d2(edge[1],e)>0.000001 :
-                            edges[s] += [ [s,e, l] ]
-                            #draw_pointer(s+e,"red","line")
-                    else : 
-                        edges[s] = [ [s,e,l] ]
-                        #draw_pointer(s+e,"green","line")
+	
+	def hull(self) :
+		# Add vertices at all self intersection points. 
+		hull = []
+		for i1 in range(len(self.polygon)):
+			poly1 = self.polygon[i1]
+			poly_ = []
+			for j1 in range(len(poly1)):
+				s, e = poly1[j1-1],poly1[j1]
+				poly_ += [s]
+				
+				# Check self intersections 
+				for j2 in range(j1+1,len(poly1)):
+					s1, e1 = poly1[j2-1],poly1[j2]
+					int_ = line_line_intersection_points(s,e,s1,e1)
+					for p in int_ :
+						if point_to_point_d2(p,s)>0.000001 and point_to_point_d2(p,e)>0.000001 : 
+							poly_ += [p]
+				# Check self intersections with other polys  
+				for i2 in range(len(self.polygon)):
+					if i1==i2 : continue
+					poly2 = self.polygon[i2]
+					for j2 in range(len(poly2)):
+						s1, e1 = poly2[j2-1],poly2[j2]
+						int_ = line_line_intersection_points(s,e,s1,e1)
+						for p in int_ :
+							if point_to_point_d2(p,s)>0.000001 and point_to_point_d2(p,e)>0.000001 : 
+								poly_ += [p]
+			hull += [poly_]
+		# Create the dictionary containing all edges in both directions
+		edges = {}
+		for poly in self.polygon :
+			for i in range(len(poly)):
+				s,e = tuple(poly[i-1]), tuple(poly[i])
+				if (point_to_point_d2(e,s)<0.000001) : continue
+				break_s, break_e = False, False
+				for p in edges :
+					if point_to_point_d2(p,s)<0.000001 : 
+						break_s = True
+						s = p
+					if point_to_point_d2(p,e)<0.000001 : 
+						break_e = True
+						e = p
+					if break_s and break_e : break
+				l = point_to_point_d(s,e)
+				if not break_s and not break_e : 
+					edges[s] = [ [s,e,l] ]
+					edges[e] = [ [e,s,l] ]
+					#draw_pointer(s+e,"red","line")
+					#draw_pointer(s+e,"red","line")
+				else : 
+					if e in edges :	
+						for edge in edges[e] :	
+							if point_to_point_d2(edge[1],s)<0.000001 :
+								break
+						if point_to_point_d2(edge[1],s)>0.000001 :
+							edges[e] += [ [e,s,l] ]
+							#draw_pointer(s+e,"red","line")
+							
+					else : 
+						edges[e] = [ [e,s,l] ]
+						#draw_pointer(s+e,"green","line")
+					if s in edges :	
+						for edge in edges[s] :	
+							if  point_to_point_d2(edge[1],e)<0.000001 :
+								break
+						if point_to_point_d2(edge[1],e)>0.000001 :
+							edges[s] += [ [s,e, l] ]
+							#draw_pointer(s+e,"red","line")
+					else : 
+						edges[s] = [ [s,e,l] ]
+						#draw_pointer(s+e,"green","line")
 
-        
-        def angle_quadrant(sin,cos):
-            # quadrants are (0,pi/2], (pi/2,pi], (pi,3*pi/2], (3*pi/2, 2*pi], i.e. 0 is in the 4-th quadrant
-            if sin>0 and cos>=0 : return 1
-            if sin>=0 and cos<0 : return 2
-            if sin<0 and cos<=0 : return 3
-            if sin<=0 and cos>0 : return 4
-            
-        
-        def angle_is_less(sin,cos,sin1,cos1):
-            # 0 = 2*pi is the largest angle
-            if [sin1, cos1] == [0,1] : return True
-            if [sin, cos] == [0,1] : return False
-            if angle_quadrant(sin,cos)>angle_quadrant(sin1,cos1) : 
-                return False
-            if angle_quadrant(sin,cos)<angle_quadrant(sin1,cos1) : 
-                return True
-            if sin>=0 and cos>0 : return sin<sin1
-            if sin>0 and cos<=0 : return sin>sin1
-            if sin<=0 and cos<0 : return sin>sin1
-            if sin<0 and cos>=0 : return sin<sin1
+		
+		def angle_quadrant(sin,cos):
+			# quadrants are (0,pi/2], (pi/2,pi], (pi,3*pi/2], (3*pi/2, 2*pi], i.e. 0 is in the 4-th quadrant
+			if sin>0 and cos>=0 : return 1
+			if sin>=0 and cos<0 : return 2
+			if sin<0 and cos<=0 : return 3
+			if sin<=0 and cos>0 : return 4
+			
+		
+		def angle_is_less(sin,cos,sin1,cos1):
+			# 0 = 2*pi is the largest angle
+			if [sin1, cos1] == [0,1] : return True
+			if [sin, cos] == [0,1] : return False
+			if angle_quadrant(sin,cos)>angle_quadrant(sin1,cos1) : 
+				return False
+			if angle_quadrant(sin,cos)<angle_quadrant(sin1,cos1) : 
+				return True
+			if sin>=0 and cos>0 : return sin<sin1
+			if sin>0 and cos<=0 : return sin>sin1
+			if sin<=0 and cos<0 : return sin>sin1
+			if sin<0 and cos>=0 : return sin<sin1
 
-            
-        def get_closes_edge_by_angle(edges, last):
-            # Last edge is normalized vector of the last edge.
-            min_angle = [0,1]
-            next = last
-            last_edge = [(last[0][0]-last[1][0])/last[2], (last[0][1]-last[1][1])/last[2]]
-            for p in edges:
-                #draw_pointer(list(p[0])+[p[0][0]+last_edge[0]*40,p[0][1]+last_edge[1]*40], "Red", "line", width=1)
-                #print_("len(edges)=",len(edges))
-                cur = [(p[1][0]-p[0][0])/p[2],(p[1][1]-p[0][1])/p[2]]
-                cos, sin = dot(cur,last_edge),  cross(cur,last_edge)
-                #draw_pointer(list(p[0])+[p[0][0]+cur[0]*40,p[0][1]+cur[1]*40], "Orange", "line", width=1, comment = [sin,cos])
-                #print_("cos, sin=",cos,sin)
-                #print_("min_angle_before=",min_angle)
+			
+		def get_closes_edge_by_angle(edges, last):
+			# Last edge is normalized vector of the last edge.
+			min_angle = [0,1]
+			next = last
+			last_edge = [(last[0][0]-last[1][0])/last[2], (last[0][1]-last[1][1])/last[2]]
+			for p in edges:
+				#draw_pointer(list(p[0])+[p[0][0]+last_edge[0]*40,p[0][1]+last_edge[1]*40], "Red", "line", width=1)
+				#print_("len(edges)=",len(edges))
+				cur = [(p[1][0]-p[0][0])/p[2],(p[1][1]-p[0][1])/p[2]]
+				cos, sin = dot(cur,last_edge),  cross(cur,last_edge)
+				#draw_pointer(list(p[0])+[p[0][0]+cur[0]*40,p[0][1]+cur[1]*40], "Orange", "line", width=1, comment = [sin,cos])
+				#print_("cos, sin=",cos,sin)
+				#print_("min_angle_before=",min_angle)
 
-                if     angle_is_less(sin,cos,min_angle[0],min_angle[1]) : 
-                    min_angle = [sin,cos]
-                    next = p
-                #print_("min_angle=",min_angle)
+				if	 angle_is_less(sin,cos,min_angle[0],min_angle[1]) : 
+					min_angle = [sin,cos]
+					next = p
+				#print_("min_angle=",min_angle)
 
-            return next        
-            
-        # Join edges together into new polygon cutting the vertexes inside new polygon
-        self.polygon = []
-        len_edges = sum([len(edges[p]) for p in edges]) 
-        loops = 0 
-        
-        while len(edges)>0 :
-            poly = []
-            if loops > len_edges  : raise ValueError, "Hull error"
-            loops+=1
-            # Find left most vertex.
-            start = (1e100,1)
-            for edge in edges : 
-                start = min(start, min(edges[edge])) 
-            last = [(start[0][0]-1,start[0][1]),start[0],1]
-            first_run = True
-            loops1 = 0
-            while (last[1]!=start[0] or first_run) :     
-                first_run = False
-                if loops1 > len_edges  : raise ValueError, "Hull error"
-                loops1 += 1
-                next = get_closes_edge_by_angle(edges[last[1]],last)
-                #draw_pointer(next[0]+next[1],"Green","line", comment=i, width= 1)
-                #print_(next[0],"-",next[1]) 
+			return next		
+			
+		# Join edges together into new polygon cutting the vertexes inside new polygon
+		self.polygon = []
+		len_edges = sum([len(edges[p]) for p in edges]) 
+		loops = 0 
+		
+		while len(edges)>0 :
+			poly = []
+			if loops > len_edges  : raise ValueError, "Hull error"
+			loops+=1
+			# Find left most vertex.
+			start = (1e100,1)
+			for edge in edges : 
+				start = min(start, min(edges[edge])) 
+			last = [(start[0][0]-1,start[0][1]),start[0],1]
+			first_run = True
+			loops1 = 0
+			while (last[1]!=start[0] or first_run) :	 
+				first_run = False
+				if loops1 > len_edges  : raise ValueError, "Hull error"
+				loops1 += 1
+				next = get_closes_edge_by_angle(edges[last[1]],last)
+				#draw_pointer(next[0]+next[1],"Green","line", comment=i, width= 1)
+				#print_(next[0],"-",next[1]) 
 
-                last = next
-                poly += [ list(last[0]) ]                
-            self.polygon += [ poly ]
-            # Remove all edges that are intersects new poly (any vertex inside new poly)
-            poly_ = Polygon([poly])
-            for p in edges.keys()[:] : 
-                if poly_.point_inside(list(p)) : del edges[p]
-        self.draw(color="Green", width=1)    
-
-
-class Arangement_Genetic:
-    # gene = [fittness, order, rotation, xposition]
-    # spieces = [gene]*shapes count
-    # population = [spieces]
-    def __init__(self, polygons, material_width):
-        self.population = []
-        self.genes_count = len(polygons)
-        self.polygons = polygons
-        self.width = material_width
-        self.mutation_factor = 0.1
-        self.order_mutate_factor = 1.
-        self.move_mutate_factor = 1.
-
-    
-    def add_random_species(self,count):
-        for i in range(count):
-            specimen = []
-            order = range(self.genes_count)
-            random.shuffle(order)
-            for j in order:
-                specimen += [ [j, random.random(), random.random()] ]
-            self.population += [ [None,specimen] ]
-
-    
-    def species_distance2(self,sp1,sp2) :
-        # retun distance, each component is normalized
-        s = 0
-        for j in range(self.genes_count) :
-            s += ((sp1[j][0]-sp2[j][0])/self.genes_count)**2 + (( sp1[j][1]-sp2[j][1]))**2 + ((sp1[j][2]-sp2[j][2]))**2
-        return s
-
-    
-    def similarity(self,sp1,top) :
-        # Define similarity as a simple distance between two points in len(gene)*len(spiece) -th dimentions
-        # for sp2 in top_spieces sum(|sp1-sp2|)/top_count
-        sim = 0
-        for sp2 in top : 
-            sim += math.sqrt(species_distance2(sp1,sp2[1]))
-        return sim/len(top)
-        
-    
-    def leave_top_species(self,count):
-        self.population.sort()
-        res = [  copy.deepcopy(self.population[0]) ]
-        del self.population[0]
-        for i in range(count-1) :
-            t = []
-            for j in range(20) : 
-                i1 = random.randint(0,len(self.population)-1) 
-                t += [ [self.population[i1][0],i1] ] 
-            t.sort()
-            res += [  copy.deepcopy(self.population[t[0][1]]) ]
-            del self.population[t[0][1]]
-        self.population = res        
-        #del self.population[0]
-        #for c in range(count-1) :
-        #    rank = []
-        #    for i in range(len(self.population)) :    
-        #        sim = self.similarity(self.population[i][1],res)
-        #        rank += [ [self.population[i][0] / sim if sim>0 else 1e100,i] ]
-        #    rank.sort()
-        #    res += [  copy.deepcopy(self.population[rank[0][1]]) ]
-        #    print_(rank[0],self.population[rank[0][1]][0])
-        #    print_(res[-1])
-        #    del self.population[rank[0][1]]
-            
-        self.population = res
-            
-            
-    def populate_species(self,count, parent_count):
-        self.population.sort()
-        self.inc = 0
-        for c in range(count):
-            parent1 = random.randint(0,parent_count-1)
-            parent2 = random.randint(0,parent_count-1)
-            if parent1==parent2 : parent2 = (parent2+1) % parent_count
-            parent1, parent2 = self.population[parent1][1], self.population[parent2][1]
-            i1,i2 = 0, 0
-            genes_order = []
-            specimen = [ [0,0.,0.] for i in range(self.genes_count) ]
-            
-            self.incest_mutation_multiplyer = 1.
-            self.incest_mutation_count_multiplyer = 1.
-
-            if self.species_distance2(parent1, parent2) <= .01/self.genes_count :
-                # OMG it's a incest :O!!!
-                # Damn you bastards!
-                self.inc +=1
-                self.incest_mutation_multiplyer = 2. 
-                self.incest_mutation_count_multiplyer = 2. 
-            else :
-                if random.random()<.01 : print_(self.species_distance2(parent1, parent2))    
-            start_gene = random.randint(0,self.genes_count)
-            end_gene = (max(1,random.randint(0,self.genes_count),int(self.genes_count/4))+start_gene) % self.genes_count
-            if end_gene<start_gene : 
-                end_gene, start_gene = start_gene, end_gene
-                parent1, parent2 = parent2, parent1
-            for i in range(start_gene,end_gene) : 
-                #rotation_mutate_param = random.random()/100
-                #xposition_mutate_param = random.random()/100
-                tr = 1. #- rotation_mutate_param
-                tp = 1. #- xposition_mutate_param
-                specimen[i] = [parent1[i][0], parent1[i][1]*tr+parent2[i][1]*(1-tr),parent1[i][2]*tp+parent2[i][2]*(1-tp)]
-                genes_order += [ parent1[i][0] ]
-
-            for i in range(0,start_gene)+range(end_gene,self.genes_count) : 
-                tr = 0. #rotation_mutate_param
-                tp = 0. #xposition_mutate_param
-                j = i 
-                while parent2[j][0] in genes_order :
-                    j = (j+1)%self.genes_count
-                specimen[i] = [parent2[j][0], parent1[i][1]*tr+parent2[i][1]*(1-tr),parent1[i][2]*tp+parent2[i][2]*(1-tp)]
-                genes_order += [ parent2[j][0] ]                        
-                
-
-            for i in range(random.randint(self.mutation_genes_count[0],self.mutation_genes_count[0]*self.incest_mutation_count_multiplyer )) :
-                if random.random() < self.order_mutate_factor * self.incest_mutation_multiplyer : 
-                    i1,i2 = random.randint(0,self.genes_count-1),random.randint(0,self.genes_count-1)
-                    specimen[i1][0], specimen[i2][0] = specimen[i2][0], specimen[i1][0]
-                if random.random() < self.move_mutation_factor * self.incest_mutation_multiplyer: 
-                    i1 = random.randint(0,self.genes_count-1)
-                    specimen[i1][1] =  (specimen[i1][1]+random.random()*math.pi2*self.move_mutation_multiplier)%1.
-                    specimen[i1][2] =  (specimen[i1][2]+random.random()*self.move_mutation_multiplier)%1.
-            self.population += [ [None,specimen] ]    
-
-    
-    def test_spiece_drop_down(self,spiece) : 
-        surface = Polygon()
-        for p in spiece :
-            time_ = time.time()
-            poly = Polygon(copy.deepcopy(self.polygons[p[0]].polygon))
-            poly.rotate(p[1]*math.pi2)
-            w = poly.width()
-            left = poly.bounds()[0]
-            poly.move( -left + (self.width-w)*p[2],0)
-            poly.drop_down(surface)
-            surface.add(poly)
-        return surface
-
-    
-    def test(self,test_function): 
-        for i in range(len(self.population)) :
-            if self.population[i][0] == None :
-                surface = test_function(self.population[i][1])
-                b = surface.bounds()
-                self.population[i][0] = (b[3]-b[1])*(b[2]-b[0])
-        self.population.sort()                 
+				last = next
+				poly += [ list(last[0]) ]				
+			self.polygon += [ poly ]
+			# Remove all edges that are intersects new poly (any vertex inside new poly)
+			poly_ = Polygon([poly])
+			for p in edges.keys()[:] : 
+				if poly_.point_inside(list(p)) : del edges[p]
+		self.draw(color="Green", width=1)	
 
 
-    def test_spiece_centroid(self,spiece) : 
-        poly = Polygon(copy.deepcopy(self.polygons[spiece[0][0]].polygon))
-        poly.rotate(spiece[0][2]*math.pi2)
-        surface  = Polygon(poly.polygon)
-        i = 0
-        for p in spiece[1:] :
-            i += 1
-            poly = Polygon(copy.deepcopy(self.polygons[p[0]].polygon))
-            poly.rotate(p[2]*math.pi2)
-            c = surface.centroid()
-            c1 = poly.centroid()
-            direction = [math.cos(p[1]*math.pi2), -math.sin(p[1]*math.pi2)]
-            poly.move(c[0]-c1[0]-direction[0]*100,c[1]-c1[1]-direction[1]*100)
-            poly.drop_into_direction(direction,surface)
-            surface.add(poly)
-        return surface
-        
-        
-        
-        #surface.draw()
 
-        
+		
 ################################################################################
 ###
 ###        Gcodetools class
@@ -2415,196 +2254,256 @@ class Arangement_Genetic:
 
 class Laserengraver(inkex.Effect):
 
-    def export_gcode(self,gcode) :
-        f = open(self.options.directory+self.options.file, "w")
-        f.write(self.header + gcode + self.footer)
-        f.close()
+	def export_gcode(self,gcode) :
+		if(self.options.no_header):
+			self.header = ""
+			self.footer = "M05\n"
+		else:
+			self.header = machine_settings.gcode_header
+			self.footer = machine_settings.gcode_footer
+		if self.options.unit == "G21 (All units in mm)" : 
+			self.header += "G21\n\n"
+		elif self.options.unit == "G20 (All units in inches)" :
+			self.header += "G20\n\n"
+			
+		f = open(self.options.directory + self.options.file, "w")
+		f.write(self.header + gcode + self.footer)
+		f.close()
 
-    def __init__(self):
-        inkex.Effect.__init__(self)
-        self.OptionParser.add_option("-d", "--directory",                    action="store", type="string",         dest="directory", default="/home/",                    help="Directory for gcode file")
-        self.OptionParser.add_option("-f", "--filename",                    action="store", type="string",         dest="file", default="-1.0",                        help="File name")            
-        self.OptionParser.add_option("",   "--add-numeric-suffix-to-filename", action="store", type="inkbool",    dest="add_numeric_suffix_to_filename", default=False,help="Add numeric suffix to filename")            
-        self.OptionParser.add_option("",   "--engraving-laser-speed",        action="store", type="int",         dest="engraving_laser_speed", default="30",                    help="Speed of laser during engraving")
-        self.OptionParser.add_option("",   "--laser-intensity",        action="store", type="int",         dest="laser_intensity", default="1000",                    help="Speed of laser during engraving")
-        self.OptionParser.add_option("",   "--suppress-all-messages",         action="store", type="inkbool",     dest="suppress_all_messages", default=True,                help="Check this to hide any messages during g-code generation")
-        self.OptionParser.add_option("",   "--create-log",                    action="store", type="inkbool",     dest="log_create_log", default=False,                help="Create log files")
-        self.OptionParser.add_option("",   "--log-filename",                  action="store", type="string",      dest="log_filename", default='',                    help="Create log files")
-        self.OptionParser.add_option("",   "--engraving-draw-calculation-paths",action="store", type="inkbool",    dest="engraving_draw_calculation_paths", default=False,        help="Draw additional graphics to debug engraving path")
-        self.OptionParser.add_option("",   "--unit",                        action="store", type="string",         dest="unit", default="G21 (All units in mm)",        help="Units")
-        self.OptionParser.add_option("",   "--active-tab",                    action="store", type="string",         dest="active_tab", default='"Laser"',                        help="Defines which tab is active")
-        self.OptionParser.add_option("",   "--biarc-max-split-depth",        action="store", type="int",         dest="biarc_max_split_depth", default="4",            help="Defines maximum depth of splitting while approximating using biarcs.")                
-        
-    def parse_curve(self, p, layer, w = None, f = None):
-            c = []
-            if len(p)==0 : 
-                return []
-            p = self.transform_csp(p, layer)
-            
+	def __init__(self):
+		inkex.Effect.__init__(self)
+		self.OptionParser.add_option("-d", "--directory",					action="store", type="string",		 dest="directory", default="/home/",					help="Directory for gcode file")
+		self.OptionParser.add_option("-f", "--filename",					action="store", type="string",		 dest="file", default="-1.0",						help="File name")			
+		self.OptionParser.add_option("",   "--add-numeric-suffix-to-filename", action="store", type="inkbool",	dest="add_numeric_suffix_to_filename", default=False,help="Add numeric suffix to filename")			
+		self.OptionParser.add_option("",   "--engraving-laser-speed",		action="store", type="int",		 dest="engraving_laser_speed", default="30",					help="Speed of laser during engraving")
+		self.OptionParser.add_option("",   "--laser-intensity",		action="store", type="int",		 dest="laser_intensity", default="1000",					help="Laser intensity during engraving")
+		self.OptionParser.add_option("",   "--suppress-all-messages",		 action="store", type="inkbool",	 dest="suppress_all_messages", default=True,				help="Check this to hide any messages during g-code generation")
+		self.OptionParser.add_option("",   "--create-log",					action="store", type="inkbool",	 dest="log_create_log", default=True,				help="Create log files")
+		self.OptionParser.add_option("",   "--log-filename",				  action="store", type="string",	  dest="log_filename", default='',					help="Create log files")
+		self.OptionParser.add_option("",   "--engraving-draw-calculation-paths",action="store", type="inkbool",	dest="engraving_draw_calculation_paths", default=False,		help="Draw additional graphics to debug engraving path")
+		self.OptionParser.add_option("",   "--unit",						action="store", type="string",		 dest="unit", default="G21 (All units in mm)",		help="Units")
+		self.OptionParser.add_option("",   "--active-tab",					action="store", type="string",		 dest="active_tab", default='"Laser"',						help="Defines which tab is active")
+		self.OptionParser.add_option("",   "--biarc-max-split-depth",		action="store", type="int",		 dest="biarc_max_split_depth", default="4",			help="Defines maximum depth of splitting while approximating using biarcs.")				
+		self.OptionParser.add_option("",   "--fill-areas",		action="store", type="inkbool",		 dest="fill_areas", default=True,			help="Fill filled paths line by line.")				
+		self.OptionParser.add_option("",   "--fill-spacing",		action="store", type="float",		 dest="fill_spacing", default=0.25,			help="Distance between area filling lines. Increase for faster engraving, decrease for better quality. Minimum: laser beam diameter")				
+		self.OptionParser.add_option("",   "--cross-fill",		action="store", type="inkbool",		 dest="cross_fill", default=False,			help="Fill areas with grid ?")				
+		self.OptionParser.add_option("",   "--fill-angle",		action="store", type="float",		 dest="fill_angle", default=0.0,			help="Angle of the fill pattern. 0.0 means parallel to x-axis.")				
+		self.OptionParser.add_option("",   "--no-header",		action="store", type="inkbool",		 dest="no_header", default=False,			help="No machine specific headers or footers")				
 
-            ### Sort to reduce Rapid distance    
-            k = range(1,len(p))
-            keys = [0]
-            while len(k)>0:
-                end = p[keys[-1]][-1][1]
-                dist = None
-                for i in range(len(k)):
-                    start = p[k[i]][0][1]
-                    dist = max(   ( -( ( end[0]-start[0])**2+(end[1]-start[1])**2 ) ,i)    ,   dist )
-                keys += [k[dist[1]]]
-                del k[dist[1]]
-            for k in keys:
-                subpath = p[k]
-                c += [ [    [subpath[0][1][0],subpath[0][1][1]]   , 'move', 0, 0] ]
-                for i in range(1,len(subpath)):
-                    sp1 = [  [subpath[i-1][j][0], subpath[i-1][j][1]] for j in range(3)]
-                    sp2 = [  [subpath[i  ][j][0], subpath[i  ][j][1]] for j in range(3)]
-                    c += biarc(sp1,sp2,0,0) if w==None else biarc(sp1,sp2,-f(w[k][i-1]),-f(w[k][i]))
-#                    l1 = biarc(sp1,sp2,0,0) if w==None else biarc(sp1,sp2,-f(w[k][i-1]),-f(w[k][i]))
-#                    print_((-f(w[k][i-1]),-f(w[k][i]), [i1[5] for i1 in l1]) )
-                c += [ [ [subpath[-1][1][0],subpath[-1][1][1]]  ,'end',0,0] ]
-                print_("Curve: " + str(c))
-            return c
+	def getDocumentWidth(self):
+		width = self.document.getroot().get('width')
+		if(width == None):
+			vbox = self.document.getroot().get('viewBox')
+			if(vbox != None ):
+				print("width property not set in root node, fetching from viewBox attribute")
+				parts = vbox.split(' ')
+				if(len(parts) == 4):
+					width = parts[2]
+
+		if(width == "100%"):
+			width = 744.09 # 210mm @ 90dpi
+			print("Overriding width from 100 percents to %s" % width)
+
+		if(width == None):
+			width = 744.09 # 210mm @ 90dpi
+			print("width not set. Assuming width is %s" % width)
+		return str(width)
+
+	def getDocumentHeight(self):
+		height = self.document.getroot().get('height')
+		if(height == None):
+			print("height property not set in root node, fetching from viewBox attribute")
+			vbox = self.document.getroot().get('viewBox')
+			if(vbox != None ):
+				parts = vbox.split(' ')
+				if(len(parts) == 4):
+					height = parts[3]
+
+		if(height == "100%"):
+			height = 1052.3622047 # 297mm @ 90dpi
+			print("Overriding height from 100 percents to %s" % height)
+
+		if(height == None):
+			height = 1052.3622047 # 297mm @ 90dpi
+			print("Height not set. Assuming height is %s" % height)
+		return str(height)
+
+	def getDocumentViewBoxMatrix(self):
+		vbox = self.document.getroot().get('viewBox')
+		if(vbox != None ):
+			print_("Found viewbox attribute", vbox)
+			widthPx = inkex.unittouu(self.getDocumentWidth())
+			heightPx = inkex.unittouu(self.getDocumentHeight())
+			parts = vbox.split(' ')
+			if(len(parts) == 4):
+				offsetVBoxX = float(parts[0])
+				offsetVBoxY = float(parts[1])
+				widthVBox = float(parts[2]) - float(parts[0])
+				heightVBox = float(parts[3]) - float(parts[1])
+
+				fx = widthPx / widthVBox
+				fy = heightPx / heightVBox
+				dx = offsetVBoxX * fx
+				dy = offsetVBoxY * fy
+				return [[fx,0,0],[0,fy,0], [dx,dy,1]]
+
+		return [[1,0,0],[0,1,0], [0,0,1]]
+
+		
+	def parse_curve(self, p, layer, w = None, f = None):
+			c = []
+			if len(p)==0 : 
+				return []
+			p = self.transform_csp(p, layer)
+			
+
+			### Sort to reduce Rapid distance	
+			k = range(1,len(p))
+			keys = [0]
+			while len(k)>0:
+				end = p[keys[-1]][-1][1]
+				dist = None
+				for i in range(len(k)):
+					start = p[k[i]][0][1]
+					dist = max(   ( -( ( end[0]-start[0])**2+(end[1]-start[1])**2 ) ,i)	,   dist )
+				keys += [k[dist[1]]]
+				del k[dist[1]]
+			for k in keys:
+				subpath = p[k]
+				c += [ [	[subpath[0][1][0],subpath[0][1][1]]   , 'move', 0, 0] ]
+				for i in range(1,len(subpath)):
+					sp1 = [  [subpath[i-1][j][0], subpath[i-1][j][1]] for j in range(3)]
+					sp2 = [  [subpath[i  ][j][0], subpath[i  ][j][1]] for j in range(3)]
+					c += biarc(sp1,sp2,0,0) if w==None else biarc(sp1,sp2,-f(w[k][i-1]),-f(w[k][i]))
+#					l1 = biarc(sp1,sp2,0,0) if w==None else biarc(sp1,sp2,-f(w[k][i-1]),-f(w[k][i]))
+#					print_((-f(w[k][i-1]),-f(w[k][i]), [i1[5] for i1 in l1]) )
+				c += [ [ [subpath[-1][1][0],subpath[-1][1][1]]  ,'end',0,0] ]
+				print_("Curve: " + str(c))
+			return c
 
 
-    def draw_curve(self, curve, layer, group=None, style=styles["biarc_style"]):
-    
-        self.get_defs()
-        # Add marker to defs if it doesnot exists
-        if "DrawCurveMarker" not in self.defs : 
-            defs = inkex.etree.SubElement( self.document.getroot(), inkex.addNS("defs","svg"))
-            marker = inkex.etree.SubElement( defs, inkex.addNS("marker","svg"), {"id":"DrawCurveMarker","orient":"auto","refX":"-8","refY":"-2.41063","style":"overflow:visible"})
-            inkex.etree.SubElement( marker, inkex.addNS("path","svg"), 
-                    {    "d":"m -6.55552,-2.41063 0,0 L -13.11104,0 c 1.0473,-1.42323 1.04126,-3.37047 0,-4.82126",
-                        "style": "fill:#000044; fill-rule:evenodd;stroke-width:0.62500000;stroke-linejoin:round;"    }
-                )
-        if "DrawCurveMarker_r" not in self.defs : 
-            defs = inkex.etree.SubElement( self.document.getroot(), inkex.addNS("defs","svg"))
-            marker = inkex.etree.SubElement( defs, inkex.addNS("marker","svg"), {"id":"DrawCurveMarker_r","orient":"auto","refX":"8","refY":"-2.41063","style":"overflow:visible"})
-            inkex.etree.SubElement( marker, inkex.addNS("path","svg"), 
-                    {    "d":"m 6.55552,-2.41063 0,0 L 13.11104,0 c -1.0473,-1.42323 -1.04126,-3.37047 0,-4.82126",
-                        "style": "fill:#000044; fill-rule:evenodd;stroke-width:0.62500000;stroke-linejoin:round;"    }
-                )
-        for i in [0,1]:
-            style['biarc%s_r'%i] = simplestyle.parseStyle(style['biarc%s'%i])
-            style['biarc%s_r'%i]["marker-start"] = "url(#DrawCurveMarker_r)"
-            del(style['biarc%s_r'%i]["marker-end"])
-            style['biarc%s_r'%i] = simplestyle.formatStyle(style['biarc%s_r'%i])
-        
-        if group==None:
-            group = inkex.etree.SubElement( self.layers[min(1,len(self.layers)-1)], inkex.addNS('g','svg'), {"gcodetools": "Preview group"} )
-        s, arcn = '', 0
-        
-        
-        a,b,c = [0.,0.], [1.,0.], [0.,1.]
-        k = (b[0]-a[0])*(c[1]-a[1])-(c[0]-a[0])*(b[1]-a[1])
-        a,b,c = self.transform(a, layer, True), self.transform(b, layer, True), self.transform(c, layer, True)
-        if ((b[0]-a[0])*(c[1]-a[1])-(c[0]-a[0])*(b[1]-a[1]))*k > 0 : reverse_angle = 1
-        else : reverse_angle = -1 
-        for sk in curve:
-            si = sk[:]
-            si[0], si[2] = self.transform(si[0], layer, True), (self.transform(si[2], layer, True) if type(si[2])==type([]) and len(si[2])==2 else si[2])
-            
-            if s!='':
-                if s[1] == 'line':
-                    inkex.etree.SubElement(    group, inkex.addNS('path','svg'), 
-                            {
-                                'style': style['line'],
-                                'd':'M %s,%s L %s,%s' % (s[0][0], s[0][1], si[0][0], si[0][1]),
-                                "gcodetools": "Preview",
-                            }
-                        )
-                elif s[1] == 'arc':
-                    arcn += 1
-                    sp = s[0]
-                    c = s[2]
-                    s[3] = s[3]*reverse_angle
-                        
-                    a =  ( (P(si[0])-P(c)).angle() - (P(s[0])-P(c)).angle() )%math.pi2 #s[3]
-                    if s[3]*a<0: 
-                            if a>0:    a = a-math.pi2
-                            else: a = math.pi2+a
-                    r = math.sqrt( (sp[0]-c[0])**2 + (sp[1]-c[1])**2 )
-                    a_st = ( math.atan2(sp[0]-c[0],- (sp[1]-c[1])) - math.pi/2 ) % (math.pi*2)
-                    st = style['biarc%s' % (arcn%2)][:]
-                    if a>0:
-                        a_end = a_st+a
-                        st = style['biarc%s'%(arcn%2)]
-                    else: 
-                        a_end = a_st*1
-                        a_st = a_st+a
-                        st = style['biarc%s_r'%(arcn%2)]
-                    inkex.etree.SubElement(    group, inkex.addNS('path','svg'), 
-                         {
-                            'style': st,
-                             inkex.addNS('cx','sodipodi'):        str(c[0]),
-                             inkex.addNS('cy','sodipodi'):        str(c[1]),
-                             inkex.addNS('rx','sodipodi'):        str(r),
-                             inkex.addNS('ry','sodipodi'):        str(r),
-                             inkex.addNS('start','sodipodi'):    str(a_st),
-                             inkex.addNS('end','sodipodi'):        str(a_end),
-                             inkex.addNS('open','sodipodi'):    'true',
-                             inkex.addNS('type','sodipodi'):    'arc',
-                            "gcodetools": "Preview",
-                        })
-            s = si
-    
+	def draw_curve(self, curve, layer, group=None, style=styles["biarc_style"]):
+	
+		self.get_defs()
+		# Add marker to defs if it doesnot exists
+		if "DrawCurveMarker" not in self.defs : 
+			defs = inkex.etree.SubElement( self.document.getroot(), inkex.addNS("defs","svg"))
+			marker = inkex.etree.SubElement( defs, inkex.addNS("marker","svg"), {"id":"DrawCurveMarker","orient":"auto","refX":"-8","refY":"-2.41063","style":"overflow:visible"})
+			inkex.etree.SubElement( marker, inkex.addNS("path","svg"), 
+					{	"d":"m -6.55552,-2.41063 0,0 L -13.11104,0 c 1.0473,-1.42323 1.04126,-3.37047 0,-4.82126",
+						"style": "fill:#000044; fill-rule:evenodd;stroke-width:0.62500000;stroke-linejoin:round;"	}
+				)
+		if "DrawCurveMarker_r" not in self.defs : 
+			defs = inkex.etree.SubElement( self.document.getroot(), inkex.addNS("defs","svg"))
+			marker = inkex.etree.SubElement( defs, inkex.addNS("marker","svg"), {"id":"DrawCurveMarker_r","orient":"auto","refX":"8","refY":"-2.41063","style":"overflow:visible"})
+			inkex.etree.SubElement( marker, inkex.addNS("path","svg"), 
+					{	"d":"m 6.55552,-2.41063 0,0 L 13.11104,0 c -1.0473,-1.42323 -1.04126,-3.37047 0,-4.82126",
+						"style": "fill:#000044; fill-rule:evenodd;stroke-width:0.62500000;stroke-linejoin:round;"	}
+				)
+		for i in [0,1]:
+			style['biarc%s_r'%i] = simplestyle.parseStyle(style['biarc%s'%i])
+			style['biarc%s_r'%i]["marker-start"] = "url(#DrawCurveMarker_r)"
+			del(style['biarc%s_r'%i]["marker-end"])
+			style['biarc%s_r'%i] = simplestyle.formatStyle(style['biarc%s_r'%i])
+		
+		if group==None:
+			group = inkex.etree.SubElement( self.layers[min(1,len(self.layers)-1)], inkex.addNS('g','svg'), {"gcodetools": "Preview group"} )
+		s, arcn = '', 0
+		
+		
+		a,b,c = [0.,0.], [1.,0.], [0.,1.]
+		k = (b[0]-a[0])*(c[1]-a[1])-(c[0]-a[0])*(b[1]-a[1])
+		a,b,c = self.transform(a, layer, True), self.transform(b, layer, True), self.transform(c, layer, True)
+		if ((b[0]-a[0])*(c[1]-a[1])-(c[0]-a[0])*(b[1]-a[1]))*k > 0 : reverse_angle = 1
+		else : reverse_angle = -1 
+		for sk in curve:
+			si = sk[:]
+			si[0], si[2] = self.transform(si[0], layer, True), (self.transform(si[2], layer, True) if type(si[2])==type([]) and len(si[2])==2 else si[2])
+			
+			if s!='':
+				if s[1] == 'line':
+					inkex.etree.SubElement(	group, inkex.addNS('path','svg'), 
+							{
+								'style': style['line'],
+								'd':'M %s,%s L %s,%s' % (s[0][0], s[0][1], si[0][0], si[0][1]),
+								"gcodetools": "Preview",
+							}
+						)
+				elif s[1] == 'arc':
+					arcn += 1
+					sp = s[0]
+					c = s[2]
+					s[3] = s[3]*reverse_angle
+						
+					a =  ( (P(si[0])-P(c)).angle() - (P(s[0])-P(c)).angle() )%math.pi2 #s[3]
+					if s[3]*a<0: 
+							if a>0:	a = a-math.pi2
+							else: a = math.pi2+a
+					r = math.sqrt( (sp[0]-c[0])**2 + (sp[1]-c[1])**2 )
+					a_st = ( math.atan2(sp[0]-c[0],- (sp[1]-c[1])) - math.pi/2 ) % (math.pi*2)
+					st = style['biarc%s' % (arcn%2)][:]
+					if a>0:
+						a_end = a_st+a
+						st = style['biarc%s'%(arcn%2)]
+					else: 
+						a_end = a_st*1
+						a_st = a_st+a
+						st = style['biarc%s_r'%(arcn%2)]
+					inkex.etree.SubElement(	group, inkex.addNS('path','svg'), 
+						 {
+							'style': st,
+							 inkex.addNS('cx','sodipodi'):		str(c[0]),
+							 inkex.addNS('cy','sodipodi'):		str(c[1]),
+							 inkex.addNS('rx','sodipodi'):		str(r),
+							 inkex.addNS('ry','sodipodi'):		str(r),
+							 inkex.addNS('start','sodipodi'):	str(a_st),
+							 inkex.addNS('end','sodipodi'):		str(a_end),
+							 inkex.addNS('open','sodipodi'):	'true',
+							 inkex.addNS('type','sodipodi'):	'arc',
+							"gcodetools": "Preview",
+						})
+			s = si
+	
 
-    def check_dir(self):
-        if self.options.directory[-1] not in ["/","\\"]:
-            if "\\" in self.options.directory :
-                self.options.directory += "\\"
-            else :
-                self.options.directory += "/"
-        print_("Checking direcrory: '%s'"%self.options.directory)
-        if (os.path.isdir(self.options.directory)):
-            if (os.path.isfile(self.options.directory+'header')):
-                f = open(self.options.directory+'header', 'r')
-                self.header = f.read()
-                f.close()
-            else:
-                self.header = defaults['header']
-            if (os.path.isfile(self.options.directory+'footer')):
-                f = open(self.options.directory+'footer','r')
-                self.footer = f.read()
-                f.close()
-            else:
-                self.footer = defaults['footer']
-                
-            if self.options.unit == "G21 (All units in mm)" : 
-                self.header += "G21\n"
-            elif self.options.unit == "G20 (All units in inches)" :
-                self.header += "G20\n"
-        else: 
-            self.error(_("Directory does not exist! Please specify existing directory at Preferences tab!"),"error")
-            return False
+	def check_dir(self):
+		if self.options.directory[-1] not in ["/","\\"]:
+			if "\\" in self.options.directory :
+				self.options.directory += "\\"
+			else :
+				self.options.directory += "/"
+		print_("Checking direcrory: '%s'"%self.options.directory)
+		if (os.path.isdir(self.options.directory)):
+			pass
+		else: 
+			self.error(_("Directory does not exist! Please specify existing directory at Preferences tab!"),"error")
+			return False
 
-        if self.options.add_numeric_suffix_to_filename :
-            dir_list = os.listdir(self.options.directory)
-            if "." in self.options.file : 
-                r = re.match(r"^(.*)(\..*)$",self.options.file)
-                ext = r.group(2)
-                name = r.group(1)
-            else:     
-                ext = ""
-                name = self.options.file
-            max_n = 0
-            for s in dir_list :
-                r = re.match(r"^%s_0*(\d+)%s$"%(re.escape(name),re.escape(ext) ), s)
-                if r :
-                    max_n = max(max_n,int(r.group(1)))
-            filename = name + "_" + ( "0"*(4-len(str(max_n+1))) + str(max_n+1) ) + ext
-            self.options.file = filename
-        
-        print_("Testing writing rights on '%s'"%(self.options.directory+self.options.file))
-        try:     
-            f = open(self.options.directory+self.options.file, "w")    
-            f.close()                            
-        except:
-            self.error(_("Can not write to specified file!\n%s"%(self.options.directory+self.options.file)),"error")
-            return False
-        return True
-            
+		if self.options.add_numeric_suffix_to_filename :
+			dir_list = os.listdir(self.options.directory)
+			if "." in self.options.file : 
+				r = re.match(r"^(.*)(\..*)$",self.options.file)
+				ext = r.group(2)
+				name = r.group(1)
+			else:	 
+				ext = ""
+				name = self.options.file
+			max_n = 0
+			for s in dir_list :
+				r = re.match(r"^%s_0*(\d+)%s$"%(re.escape(name),re.escape(ext) ), s)
+				if r :
+					max_n = max(max_n,int(r.group(1)))
+			filename = name + "_" + ( "0"*(4-len(str(max_n+1))) + str(max_n+1) ) + ext
+			self.options.file = filename
+		
+		print_("Testing writing rights on '%s'"%(self.options.directory+self.options.file))
+		try:	 
+			f = open(self.options.directory+self.options.file, "w")	
+			f.close()							
+		except:
+			self.error(_("Can not write to specified file!\n%s"%(self.options.directory+self.options.file)),"error")
+			return False
+		return True
+			
 
 
 ################################################################################
@@ -2615,171 +2514,174 @@ class Laserengraver(inkex.Effect):
 ###        Crve defenitnion [start point, type = {'arc','line','move','end'}, arc center, arc angle, end point, [zstart, zend]]        
 ###
 ################################################################################
-    def generate_gcode(self, curve, layer, depth):
-        print ("generate_gcode()")
-        tool = self.tools
-        print_("Tool in g-code generator: " + str(tool))
-        def c(c):
-            c = [c[i] if i<len(c) else None for i in range(6)]
-            if c[5] == 0 : c[5]=None
-            s = [" X", " Y", " Z", " I", " J", " K"]
-            r = ''    
-            for i in range(6):
-                if c[i]!=None:
-                    r += s[i] + ("%f" % (round(c[i],4))).rstrip('0')
-            return r
+	def generate_gcode(self, curve, intensity = 0, feedrate = 0):
+		print ("generate_gcode()")
+		#for p in curve : print "  * ",p
+		if feedrate == 0 : feedrate = self.tools['penetration feed']
+		tool = self.tools
+		print_("Tool in g-code generator: " + str(tool))
+		def c(c):
+			c = [c[i] if i<len(c) else None for i in range(6)]
+			if c[5] == 0 : c[5]=None
+			s = [" X", " Y", " Z", " I", " J", " K"]
+			r = ''	
+			for i in range(6):
+				if c[i]!=None:
+					#r += s[i] + ("%f3" % (round(c[i],4))) #.rstrip('0')
+					r += s[i] + "{0:.3f}".format(c[i]) # three digit limit, no 0 stripping as this would lead to "0." for 0.000
+			return r
 
-        def calculate_angle(a, current_a):
-            return  min(                    
-                        [abs(a-current_a%math.pi2+math.pi2), a+current_a-current_a%math.pi2+math.pi2],
-                        [abs(a-current_a%math.pi2-math.pi2), a+current_a-current_a%math.pi2-math.pi2],
-                        [abs(a-current_a%math.pi2),             a+current_a-current_a%math.pi2])[1]
-        if len(curve)==0 : return ""    
-                
-        try :
-            self.last_used_tool == None
-        except :
-            self.last_used_tool = None
-        print_("working on curve")
-        print_("Curve: " + str(curve))
-        g = ""
+		def calculate_angle(a, current_a):
+			return  min(					
+						[abs(a-current_a%math.pi2+math.pi2), a+current_a-current_a%math.pi2+math.pi2],
+						[abs(a-current_a%math.pi2-math.pi2), a+current_a-current_a%math.pi2-math.pi2],
+						[abs(a-current_a%math.pi2),			 a+current_a-current_a%math.pi2])[1]
+		if len(curve)==0 : return ""	
+				
+		#try :
+		#	self.last_used_tool == None
+		#except :
+		#	self.last_used_tool = None
+		print_("working on curve")
+		print_("Curve: " + str(curve))
+		g = ""
 
-        lg, f =  'G00', "F%f"%tool['penetration feed']
-        penetration_feed = "F%s"%tool['penetration feed'] 
-        current_a = 0
-        for i in range(1,len(curve)):
-        #    Creating Gcode for curve between s=curve[i-1] and si=curve[i] start at s[0] end at s[4]=si[0]
-            s, si = curve[i-1], curve[i]
-            feed = f if lg not in ['G01','G02','G03'] else ''
-            if s[1]    == 'move':
-                g += "G0" + c(si[0]) + "\n" + tool['gcode before path'] + "\n"
-                lg = 'G00'
-            elif s[1] == 'end':
-                g += tool['gcode after path'] + "\n"
-                lg = 'G00'
-            elif s[1] == 'line':
-                if lg=="G00": g += "G01 " + feed + "\n"   
-                g += "G01 " + c(si[0]) + "\n"
-                lg = 'G01'
-            elif s[1] == 'arc':
-                r = [(s[2][0]-s[0][0]), (s[2][1]-s[0][1])]
-                if lg=="G00": g += "G01" + feed + "\n"
-                if (r[0]**2 + r[1]**2)>.1:
-                    r1, r2 = (P(s[0])-P(s[2])), (P(si[0])-P(s[2]))
-                    if abs(r1.mag()-r2.mag()) < 0.001 :
-                        g += ("G02" if s[3]<0 else "G03") + c(si[0]+[ None, (s[2][0]-s[0][0]),(s[2][1]-s[0][1])  ]) + "\n"
-                    else:
-                        r = (r1.mag()+r2.mag())/2
-                        g += ("G02" if s[3]<0 else "G03") + c(si[0]) + " R%f" % (r) + "\n"
-                    lg = 'G02'
-                else:
-                    g += "G01" +c(si[0]) + feed + "\n"
-                    lg = 'G01'
-        if si[1] == 'end':
-            g += tool['gcode after path'] + "\n"
-        return g
-
-
-    def get_transforms(self,g):
-        root = self.document.getroot()
-        trans = []
-        while (g!=root):
-            if 'transform' in g.keys():
-                t = g.get('transform')
-                t = simpletransform.parseTransform(t)
-                trans = simpletransform.composeTransform(t,trans) if trans != [] else t
-                print_(trans)
-            g=g.getparent()
-        return trans 
-        
-
-    def apply_transforms(self,g,csp):
-        trans = self.get_transforms(g)
-        if trans != []:
-            simpletransform.applyTransformToPath(trans, csp)
-        return csp
+		lg, f =  'G00', "F%f"%feedrate
+		penetration_feed = "F%s"%feedrate 
+		current_a = 0
+		for i in range(1,len(curve)):
+		#	Creating Gcode for curve between s=curve[i-1] and si=curve[i] start at s[0] end at s[4]=si[0]
+			s, si = curve[i-1], curve[i]
+			feed = f if lg not in ['G01','G02','G03'] else ''
+			if s[1]	== 'move':
+				g += "G0" + c(si[0]) + "\n" + machine_settings.gcode_before_path(intensity) + "\n"
+				lg = 'G00'
+			elif s[1] == 'end':
+				g += machine_settings.gcode_after_path() + "\n"
+				lg = 'G00'
+			elif s[1] == 'line':
+				if lg=="G00": g += "G01 " + feed + "\n"   
+				g += "G01 " + c(si[0]) + "\n"
+				lg = 'G01'
+			elif s[1] == 'arc':
+				r = [(s[2][0]-s[0][0]), (s[2][1]-s[0][1])]
+				if lg=="G00": g += "G01" + feed + "\n"
+				if (r[0]**2 + r[1]**2)>.1:
+					r1, r2 = (P(s[0])-P(s[2])), (P(si[0])-P(s[2]))
+					if abs(r1.mag()-r2.mag()) < 0.001 :
+						g += ("G02" if s[3]<0 else "G03") + c(si[0]+[ None, (s[2][0]-s[0][0]),(s[2][1]-s[0][1])  ]) + "\n"
+					else:
+						r = (r1.mag()+r2.mag())/2
+						g += ("G02" if s[3]<0 else "G03") + c(si[0]) + " R%f" % (r) + "\n"
+					lg = 'G02'
+				else:
+					g += "G01" +c(si[0]) + feed + "\n"
+					lg = 'G01'
+		if si[1] == 'end':
+			g += machine_settings.gcode_after_path() + "\n"
+		return g
 
 
-    def transform(self, source_point, layer, reverse=False):
-        if layer == None :
-            layer = self.current_layer if self.current_layer is not None else self.document.getroot()
-        if layer not in self.transform_matrix:
-            for i in range(self.layers.index(layer),-1,-1):
-                if self.layers[i] in self.orientation_points : 
-                    break
+	def get_transforms(self,g):
+		root = self.document.getroot()
+		trans = [[1,0,0],[0,1,0]]
+		while (g!=root):
+			if 'transform' in g.keys():
+				t = g.get('transform')
+				t = simpletransform.parseTransform(t)
+				trans = simpletransform.composeTransform(t,trans) if trans != [] else t
+				print_(trans)
+			g=g.getparent()
+		return trans 
+		
 
-            print_(str(self.layers))
-            print_(str("I: " + str(i)))
-            print_("Transform: " + str(self.layers[i]))
-            if self.layers[i] not in self.orientation_points :
-                self.error(_("Orientation points for '%s' layer have not been found! Please add orientation points using Orientation tab!") % layer.get(inkex.addNS('label','inkscape')),"no_orientation_points")
-            elif self.layers[i] in self.transform_matrix :
-                self.transform_matrix[layer] = self.transform_matrix[self.layers[i]]
-            else :
-                orientation_layer = self.layers[i]
-                if len(self.orientation_points[orientation_layer])>1 : 
-                    self.error(_("There are more than one orientation point groups in '%s' layer") % orientation_layer.get(inkex.addNS('label','inkscape')),"more_than_one_orientation_point_groups")
-                points = self.orientation_points[orientation_layer][0]
-                if len(points)==2:
-                    points += [ [ [(points[1][0][1]-points[0][0][1])+points[0][0][0], -(points[1][0][0]-points[0][0][0])+points[0][0][1]], [-(points[1][1][1]-points[0][1][1])+points[0][1][0], points[1][1][0]-points[0][1][0]+points[0][1][1]] ] ]
-                if len(points)==3:
-                    print_("Layer '%s' Orientation points: " % orientation_layer.get(inkex.addNS('label','inkscape')))
-                    for point in points:
-                        print_(point)
-                    #    Zcoordinates definition taken from Orientatnion point 1 and 2 
-                    self.Zcoordinates[layer] = [max(points[0][1][2],points[1][1][2]), min(points[0][1][2],points[1][1][2])]
-                    matrix = numpy.array([
-                                [points[0][0][0], points[0][0][1], 1, 0, 0, 0, 0, 0, 0],
-                                [0, 0, 0, points[0][0][0], points[0][0][1], 1, 0, 0, 0],
-                                [0, 0, 0, 0, 0, 0, points[0][0][0], points[0][0][1], 1],
-                                [points[1][0][0], points[1][0][1], 1, 0, 0, 0, 0, 0, 0],
-                                [0, 0, 0, points[1][0][0], points[1][0][1], 1, 0, 0, 0],
-                                [0, 0, 0, 0, 0, 0, points[1][0][0], points[1][0][1], 1],
-                                [points[2][0][0], points[2][0][1], 1, 0, 0, 0, 0, 0, 0],
-                                [0, 0, 0, points[2][0][0], points[2][0][1], 1, 0, 0, 0],
-                                [0, 0, 0, 0, 0, 0, points[2][0][0], points[2][0][1], 1]
-                            ])
-                                
-                    if numpy.linalg.det(matrix)!=0 :
-                        m = numpy.linalg.solve(matrix,
-                            numpy.array(
-                                [[points[0][1][0]], [points[0][1][1]], [1], [points[1][1][0]], [points[1][1][1]], [1], [points[2][1][0]], [points[2][1][1]], [1]]    
-                                        )
-                            ).tolist()
-                        self.transform_matrix[layer] = [[m[j*3+i][0] for i in range(3)] for j in range(3)]
-                    
-                    else :
-                        self.error(_("Orientation points are wrong! (if there are two orientation points they sould not be the same. If there are three orientation points they should not be in a straight line.)"),"wrong_orientation_points")
-                else :
-                    self.error(_("Orientation points are wrong! (if there are two orientation points they sould not be the same. If there are three orientation points they should not be in a straight line.)"),"wrong_orientation_points")
-
-            self.transform_matrix_reverse[layer] = numpy.linalg.inv(self.transform_matrix[layer]).tolist()        
-            print_("\n Layer '%s' transformation matrixes:" % layer.get(inkex.addNS('label','inkscape')) )
-            print_(self.transform_matrix)
-            print_(self.transform_matrix_reverse)
-
-            ###self.Zauto_scale[layer]  = math.sqrt( (self.transform_matrix[layer][0][0]**2 + self.transform_matrix[layer][1][1]**2)/2 )
-            ### Zautoscale is absolete
-            self.Zauto_scale[layer] = 1
-            print_("Z automatic scale = %s (computed according orientation points)" % self.Zauto_scale[layer])
-
-        x,y = source_point[0], source_point[1]
-        if not reverse :
-            t = self.transform_matrix[layer]
-        else :
-            t = self.transform_matrix_reverse[layer]
-        return [t[0][0]*x+t[0][1]*y+t[0][2], t[1][0]*x+t[1][1]*y+t[1][2]]
+	def apply_transforms(self,g,csp):
+		trans = self.get_transforms(g)
+		if trans != []:
+			simpletransform.applyTransformToPath(trans, csp)
+		return csp
 
 
-    def transform_csp(self, csp_, layer, reverse = False):
-        csp = [  [ [csp_[i][j][0][:],csp_[i][j][1][:],csp_[i][j][2][:]]  for j in range(len(csp_[i])) ]   for i in range(len(csp_)) ]
-        for i in xrange(len(csp)):
-            for j in xrange(len(csp[i])): 
-                for k in xrange(len(csp[i][j])): 
-                    csp[i][j][k] = self.transform(csp[i][j][k],layer, reverse)
-        return csp
-    
-        
+	def transform(self, source_point, layer, reverse=False):
+		if layer == None :
+			layer = self.current_layer if self.current_layer is not None else self.document.getroot()
+		if layer not in self.transform_matrix:
+			for i in range(self.layers.index(layer),-1,-1):
+				if self.layers[i] in self.orientation_points : 
+					break
+
+			print_(str(self.layers))
+			print_(str("I: " + str(i)))
+			print_("Transform: " + str(self.layers[i]))
+			if self.layers[i] not in self.orientation_points :
+				self.error(_("Orientation points for '%s' layer have not been found! Please add orientation points using Orientation tab!") % layer.get(inkex.addNS('label','inkscape')),"no_orientation_points")
+			elif self.layers[i] in self.transform_matrix :
+				self.transform_matrix[layer] = self.transform_matrix[self.layers[i]]
+			else :
+				orientation_layer = self.layers[i]
+				if len(self.orientation_points[orientation_layer])>1 : 
+					self.error(_("There are more than one orientation point groups in '%s' layer") % orientation_layer.get(inkex.addNS('label','inkscape')),"more_than_one_orientation_point_groups")
+				points = self.orientation_points[orientation_layer][0]
+				if len(points)==2:
+					points += [ [ [(points[1][0][1]-points[0][0][1])+points[0][0][0], -(points[1][0][0]-points[0][0][0])+points[0][0][1]], [-(points[1][1][1]-points[0][1][1])+points[0][1][0], points[1][1][0]-points[0][1][0]+points[0][1][1]] ] ]
+				if len(points)==3:
+					print_("Layer '%s' Orientation points: " % orientation_layer.get(inkex.addNS('label','inkscape')))
+					for point in points:
+						print_(point)
+					#	Zcoordinates definition taken from Orientatnion point 1 and 2 
+					self.Zcoordinates[layer] = [max(points[0][1][2],points[1][1][2]), min(points[0][1][2],points[1][1][2])]
+					matrix = numpy.array([
+								[points[0][0][0], points[0][0][1], 1, 0, 0, 0, 0, 0, 0],
+								[0, 0, 0, points[0][0][0], points[0][0][1], 1, 0, 0, 0],
+								[0, 0, 0, 0, 0, 0, points[0][0][0], points[0][0][1], 1],
+								[points[1][0][0], points[1][0][1], 1, 0, 0, 0, 0, 0, 0],
+								[0, 0, 0, points[1][0][0], points[1][0][1], 1, 0, 0, 0],
+								[0, 0, 0, 0, 0, 0, points[1][0][0], points[1][0][1], 1],
+								[points[2][0][0], points[2][0][1], 1, 0, 0, 0, 0, 0, 0],
+								[0, 0, 0, points[2][0][0], points[2][0][1], 1, 0, 0, 0],
+								[0, 0, 0, 0, 0, 0, points[2][0][0], points[2][0][1], 1]
+							])
+								
+					if numpy.linalg.det(matrix)!=0 :
+						m = numpy.linalg.solve(matrix,
+							numpy.array(
+								[[points[0][1][0]], [points[0][1][1]], [1], [points[1][1][0]], [points[1][1][1]], [1], [points[2][1][0]], [points[2][1][1]], [1]]	
+										)
+							).tolist()
+						self.transform_matrix[layer] = [[m[j*3+i][0] for i in range(3)] for j in range(3)]
+					
+					else :
+						self.error(_("Orientation points are wrong! (if there are two orientation points they sould not be the same. If there are three orientation points they should not be in a straight line.)"),"wrong_orientation_points")
+				else :
+					self.error(_("Orientation points are wrong! (if there are two orientation points they sould not be the same. If there are three orientation points they should not be in a straight line.)"),"wrong_orientation_points")
+
+			self.transform_matrix_reverse[layer] = numpy.linalg.inv(self.transform_matrix[layer]).tolist()		
+			print_("\n Layer '%s' transformation matrixes:" % layer.get(inkex.addNS('label','inkscape')) )
+			print_(self.transform_matrix)
+			print_(self.transform_matrix_reverse)
+
+			###self.Zauto_scale[layer]  = math.sqrt( (self.transform_matrix[layer][0][0]**2 + self.transform_matrix[layer][1][1]**2)/2 )
+			### Zautoscale is absolete
+			self.Zauto_scale[layer] = 1
+			print_("Z automatic scale = %s (computed according orientation points)" % self.Zauto_scale[layer])
+
+		x,y = source_point[0], source_point[1]
+		if not reverse :
+			t = self.transform_matrix[layer]
+		else :
+			t = self.transform_matrix_reverse[layer]
+		return [t[0][0]*x+t[0][1]*y+t[0][2], t[1][0]*x+t[1][1]*y+t[1][2]]
+
+
+	def transform_csp(self, csp_, layer, reverse = False):
+		csp = [  [ [csp_[i][j][0][:],csp_[i][j][1][:],csp_[i][j][2][:]]  for j in range(len(csp_[i])) ]   for i in range(len(csp_)) ]
+		for i in xrange(len(csp)):
+			for j in xrange(len(csp[i])): 
+				for k in xrange(len(csp[i][j])): 
+					csp[i][j][k] = self.transform(csp[i][j][k],layer, reverse)
+		return csp
+	
+		
 ################################################################################
 ###        Errors handling function, notes are just printed into Logfile, 
 ###        warnings are printed into log file and warning message is displayed but
@@ -2828,84 +2730,206 @@ class Laserengraver(inkex.Effect):
 ################################################################################
 ###        Get defs from svg
 ################################################################################
-    def get_defs(self) :
-        print("get_defs()")
-        self.defs = {}
-        def recursive(g) :
-            for i in g:
-                if i.tag == inkex.addNS("defs","svg") : 
-                    for j in i: 
-                        self.defs[j.get("id")] = i
-                if i.tag ==inkex.addNS("g",'svg') :
-                    recursive(i)
-        recursive(self.document.getroot())
+	def get_defs(self) :
+		print("get_defs()")
+		self.defs = {}
+		def recursive(g) :
+			for i in g:
+				if i.tag == inkex.addNS("defs","svg") : 
+					for j in i: 
+						self.defs[j.get("id")] = i
+				if i.tag ==inkex.addNS("g",'svg') :
+					recursive(i)
+		recursive(self.document.getroot())
 
+	def handle_node(self, node, layer):
+		simpletransform.fuseTransform(node)
+		self.paths[layer] = self.paths[layer] + [node] if layer in self.paths else [node]
+		if node.get("id") in self.selected :
+			self.selected_paths[layer] = self.selected_paths[layer] + [node] if layer in self.selected_paths else [node]  
+		
+		if self.options.fill_areas == True:
+			styles = simplestyle.parseStyle(node.get("style"))
+			if "fill" in styles and styles["fill"] != "none" and styles["fill"] != '' :
+				#fillColor = styles["fill"]
+				ig = infill_generator.InfillGenerator( self.document, [node] )
+				fillings = ig.effect(self.options.fill_spacing, self.options.cross_fill, self.options.fill_angle)
+				self.filled_areas[layer] = self.filled_areas[layer] + fillings if layer in self.filled_areas else fillings
+
+	def handle_image(self, imgNode, layer):
+		self.images[layer] = self.images[layer] + imgNode if layer in self.images else [imgNode]
+		
 
 ################################################################################
 ###
 ###        Get Gcodetools info from the svg
 ###
 ################################################################################
-    def get_info(self):
-        print "get_info"
-        self.selected_paths = {}
-        self.paths = {}
-        self.images = []
-        self.orientation_points = {}
-        self.layers = [self.document.getroot()]
-        self.Zcoordinates = {}
-        self.transform_matrix = {}
-        self.transform_matrix_reverse = {}
-        self.Zauto_scale = {}
-        
-        def recursive_search(g, layer, selected=False):
-            items = g.getchildren()
-            items.reverse()
-            for i in items:
-                if selected:
-                    self.selected[i.get("id")] = i
-                if i.tag == inkex.addNS("g",'svg') and i.get(inkex.addNS('groupmode','inkscape')) == 'layer':
-                    self.layers += [i]
-                    recursive_search(i,i)
-                elif i.get('gcodetools') == "Gcodetools orientation group" :
-                    points = self.get_orientation_points(i)
-                    if points != None :
-                        self.orientation_points[layer] = self.orientation_points[layer]+[points[:]] if layer in self.orientation_points else [points[:]]
-                        print_("Found orientation points in '%s' layer: %s" % (layer.get(inkex.addNS('label','inkscape')), points))
-                    else :
-                        self.error(_("Warning! Found bad orientation points in '%s' layer. Resulting Gcode could be corrupt!") % layer.get(inkex.addNS('label','inkscape')), "bad_orientation_points_in_some_layers")
-                elif i.tag == inkex.addNS('path','svg'):
-                    if "gcodetools"  not in i.keys() :
-                        self.paths[layer] = self.paths[layer] + [i] if layer in self.paths else [i]  
-                        if i.get("id") in self.selected :
-                            self.selected_paths[layer] = self.selected_paths[layer] + [i] if layer in self.selected_paths else [i]  
-                # dirty hack to support polygon and rect tags.
-                elif i.tag == inkex.addNS('polygon','svg'):
-                    if "gcodetools"  not in i.keys() :
-                        i.set("d", "M "+i.get("points")+" z")
-                        self.paths[layer] = self.paths[layer] + [i] if layer in self.paths else [i]  
-                        if i.get("id") in self.selected :
-                            self.selected_paths[layer] = self.selected_paths[layer] + [i] if layer in self.selected_paths else [i]  
-                elif i.tag == inkex.addNS('rect','svg'):
-                    if "gcodetools"  not in i.keys() :
-                        x = i.get("x")
-                        y = i.get("y")
-                        w = i.get("width")
-                        h = i.get("height")
-                        i.set("d", "m "+x+","+y+" "+w+",0 0,"+h+" -"+w+",0 z")
-                        self.paths[layer] = self.paths[layer] + [i] if layer in self.paths else [i]  
-                        if i.get("id") in self.selected :
-                            self.selected_paths[layer] = self.selected_paths[layer] + [i] if layer in self.selected_paths else [i]  
-                elif i.tag == inkex.addNS('image','svg'):
-                    self.images += i
-                    print_("added image " + i.get("width") + 'x' + i.get("height") + "@" + i.get("x")+","+i.get("y"))
+	def get_info(self):
+		print "get_info"
+		self.selected_paths = {}
+		self.paths = {}
+		self.images = {}
+		self.orientation_points = {}
+		self.layers = [self.document.getroot()]
+		self.Zcoordinates = {}
+		self.transform_matrix = {}
+		self.transform_matrix_reverse = {}
+		self.Zauto_scale = {}
+		self.filled_areas = {}
+		
+		def recursive_search(g, layer, selected=False):
+			items = g.getchildren()
+			items.reverse()
+			for i in items:
+				if selected:
+					self.selected[i.get("id")] = i
+				if i.tag == inkex.addNS("g",'svg') and i.get(inkex.addNS('groupmode','inkscape')) == 'layer':
+					self.layers += [i]
+					recursive_search(i,i)
+				elif i.get('gcodetools') == "Gcodetools orientation group" :
+					points = self.get_orientation_points(i)
+					if points != None :
+						self.orientation_points[layer] = self.orientation_points[layer]+[points[:]] if layer in self.orientation_points else [points[:]]
+						print_("Found orientation points in '%s' layer: %s" % (layer.get(inkex.addNS('label','inkscape')), points))
+					else :
+						self.error(_("Warning! Found bad orientation points in '%s' layer. Resulting Gcode could be corrupt!") % layer.get(inkex.addNS('label','inkscape')), "bad_orientation_points_in_some_layers")
+				elif "gcodetools"  not in i.keys() :
+					# path
+					if i.tag == inkex.addNS('path','svg'):					
+						self.handle_node(i, layer)
 
-                elif i.tag == inkex.addNS("g",'svg'):
-                    recursive_search(i,layer, (i.get("id") in self.selected) )
-                elif i.get("id") in self.selected :
-                    self.error(_("This extension works with Paths and Dynamic Offsets and groups of them only! All other objects will be ignored!\nSolution 1: press Path->Object to path or Shift+Ctrl+C.\nSolution 2: Path->Dynamic offset or Ctrl+J.\nSolution 3: export all contours to PostScript level 2 (File->Save As->.ps) and File->Import this file."),"selection_contains_objects_that_are_not_paths")
-                else :
-                    print_("ignoring not supported tag ",i.tag, items)
+					# rect
+					elif i.tag == inkex.addNS( 'rect', 'svg' ) or i.tag == 'rect':
+
+						# Manually transform
+						#
+						#    <rect x="X" y="Y" width="W" height="H"/>
+						# into
+						#    <path d="MX,Y lW,0 l0,H l-W,0 z"/>
+						#
+						# I.e., explicitly draw three sides of the rectangle and the
+						# fourth side implicitly
+
+						# Create a path with the outline of the rectangle
+						x = float( i.get( 'x' ) )
+						y = float( i.get( 'y' ) )
+						if ( not x ) or ( not y ):
+							pass
+						w = float( i.get( 'width', '0' ) )
+						h = float( i.get( 'height', '0' ) )
+						a = []
+						a.append( ['M ', [x, y]] )
+						a.append( [' l ', [w, 0]] )
+						a.append( [' l ', [0, h]] )
+						a.append( [' l ', [-w, 0]] )
+						a.append( [' Z', []] )
+						d = simplepath.formatPath( a )
+						i.set("d", d)
+						
+						self.handle_node(i, layer)
+						
+					# line
+					elif i.tag == inkex.addNS( 'line', 'svg' ) or i.tag == 'line':
+
+						# Convert
+						#
+						#   <line x1="X1" y1="Y1" x2="X2" y2="Y2/>
+						# to
+						#   <path d="MX1,Y1 LX2,Y2"/>
+
+						x1 = float( i.get( 'x1' ) )
+						y1 = float( i.get( 'y1' ) )
+						x2 = float( i.get( 'x2' ) )
+						y2 = float( i.get( 'y2' ) )
+						if ( not x1 ) or ( not y1 ) or ( not x2 ) or ( not y2 ):
+							pass
+						a = []
+						a.append( ['M ', [x1, y1]] )
+						a.append( [' L ', [x2, y2]] )
+						d = simplepath.formatPath( a )
+						i.set("d",d)
+						
+						self.handle_node(i, layer)
+
+					# polygon
+					elif i.tag == inkex.addNS( 'polygon', 'svg' ) or i.tag == 'polygon' \
+					or i.tag == inkex.addNS( 'polyline', 'svg' ) or i.tag == 'polyline':
+						# Convert
+						#
+						#  <polygon points="x1,y1 x2,y2 x3,y3 [...]"/>
+						#  <polyline points="x1,y1 x2,y2 x3,y3 [...]"/>
+						# to
+						#   <path d="Mx1,y1 Lx2,y2 Lx3,y3 [...] Z"/>
+						#
+						# Note: we ignore polygons with no points
+
+						pl = i.get( 'points', '' ).strip()
+						if pl == '':
+							pass
+
+						pa = pl.split()
+						d = "".join( ["M " + pa[j] if j == 0 else " L " + pa[j] for j in range( 0, len( pa ) )] )
+						d += " Z"
+						i.set("d", d)
+
+						self.handle_node(i, layer)
+					
+					# circle / ellipse
+					elif i.tag == inkex.addNS( 'ellipse', 'svg' ) or \
+						i.tag == 'ellipse' or \
+						i.tag == inkex.addNS( 'circle', 'svg' ) or \
+						i.tag == 'circle':
+
+							# Convert circles and ellipses to a path with two 180 degree arcs.
+							# In general (an ellipse), we convert
+							#
+							#   <ellipse rx="RX" ry="RY" cx="X" cy="Y"/>
+							# to
+							#   <path d="MX1,CY A RX,RY 0 1 0 X2,CY A RX,RY 0 1 0 X1,CY"/>
+							#
+							# where
+							#   X1 = CX - RX
+							#   X2 = CX + RX
+							#
+							# Note: ellipses or circles with a radius attribute of value 0 are ignored
+
+							if i.tag == inkex.addNS( 'ellipse', 'svg' ) or i.tag == 'ellipse':
+								rx = float( i.get( 'rx', '0' ) )
+								ry = float( i.get( 'ry', '0' ) )
+							else:
+								rx = float( i.get( 'r', '0' ) )
+								ry = rx
+							if rx == 0 or ry == 0:
+								pass
+
+							cx = float( i.get( 'cx', '0' ) )
+							cy = float( i.get( 'cy', '0' ) )
+							x1 = cx - rx
+							x2 = cx + rx
+							d = 'M %f,%f ' % ( x1, cy ) + \
+								'A %f,%f ' % ( rx, ry ) + \
+								'0 1 0 %f,%f ' % ( x2, cy ) + \
+								'A %f,%f ' % ( rx, ry ) + \
+								'0 1 0 %f,%f' % ( x1, cy )
+							i.set("d", d)
+							
+							self.handle_node(i, layer)
+
+					# image
+					elif i.tag == inkex.addNS('image','svg'):
+						print_("added image " + i.get("width") + 'x' + i.get("height") + "@" + i.get("x")+","+i.get("y"))
+						self.handle_image(i, layer)
+					
+					# group
+					elif i.tag == inkex.addNS("g",'svg'):
+						recursive_search(i,layer, (i.get("id") in self.selected) )
+
+					elif i.get("id") in self.selected :
+						self.error(_("This extension works with Paths and Dynamic Offsets and groups of them only! All other objects will be ignored!\nSolution 1: press Path->Object to path or Shift+Ctrl+C.\nSolution 2: Path->Dynamic offset or Ctrl+J.\nSolution 3: export all contours to PostScript level 2 (File->Save As->.ps) and File->Import this file."),"selection_contains_objects_that_are_not_paths")
+				
+					else :
+						print_("ignoring not supported tag ", i.tag) #, "\n", inkex.etree.tostring(i))
 					
         recursive_search(self.document.getroot(),self.document.getroot())
         print_("self.layers", len(self.layers))
@@ -2969,193 +2993,232 @@ class Laserengraver(inkex.Effect):
 ###        Laser
 ###
 ################################################################################
-    def laser(self) :
-        def get_boundaries(points):
-            minx,miny,maxx,maxy=None,None,None,None
-            out=[[],[],[],[]]
-            for p in points:
-                if minx==p[0]:
-                    out[0]+=[p]
-                if minx==None or p[0]<minx: 
-                    minx=p[0]
-                    out[0]=[p]
+	def laser(self) :
+		def get_boundaries(points):
+			minx,miny,maxx,maxy=None,None,None,None
+			out=[[],[],[],[]]
+			for p in points:
+				if minx==p[0]:
+					out[0]+=[p]
+				if minx==None or p[0]<minx: 
+					minx=p[0]
+					out[0]=[p]
 
-                if miny==p[1]:
-                    out[1]+=[p]
-                if miny==None or p[1]<miny: 
-                    miny=p[1]
-                    out[1]=[p]
+				if miny==p[1]:
+					out[1]+=[p]
+				if miny==None or p[1]<miny: 
+					miny=p[1]
+					out[1]=[p]
 
-                if maxx==p[0]:
-                    out[2]+=[p]
-                if maxx==None or p[0]>maxx: 
-                    maxx=p[0]
-                    out[2]=[p]
+				if maxx==p[0]:
+					out[2]+=[p]
+				if maxx==None or p[0]>maxx: 
+					maxx=p[0]
+					out[2]=[p]
 
-                if maxy==p[1]:
-                    out[3]+=[p]
-                if maxy==None or p[1]>maxy: 
-                    maxy=p[1]
-                    out[3]=[p]
-            return out
+				if maxy==p[1]:
+					out[3]+=[p]
+				if maxy==None or p[1]>maxy: 
+					maxy=p[1]
+					out[3]=[p]
+			return out
 
 
-        def remove_duplicates(points):
-            i=0        
-            out=[]
-            for p in points:
-                for j in xrange(i,len(points)):
-                    if p==points[j]: points[j]=[None,None]    
-                if p!=[None,None]: out+=[p]
-            i+=1
-            return(out)
-    
-    
-        def get_way_len(points):
-            l=0
-            for i in xrange(1,len(points)):
-                l+=math.sqrt((points[i][0]-points[i-1][0])**2 + (points[i][1]-points[i-1][1])**2)
-            return l
+		def remove_duplicates(points):
+			i=0		
+			out=[]
+			for p in points:
+				for j in xrange(i,len(points)):
+					if p==points[j]: points[j]=[None,None]	
+				if p!=[None,None]: out+=[p]
+			i+=1
+			return(out)
+	
+	
+		def get_way_len(points):
+			l=0
+			for i in xrange(1,len(points)):
+				l+=math.sqrt((points[i][0]-points[i-1][0])**2 + (points[i][1]-points[i-1][1])**2)
+			return l
 
-    
-        def sort_dxfpoints(points):
-            points=remove_duplicates(points)
+	
+		def sort_dxfpoints(points):
+			points=remove_duplicates(points)
 
-            ways=[
-                    # l=0, d=1, r=2, u=3
-             [3,0], # ul
-             [3,2], # ur
-             [1,0], # dl
-             [1,2], # dr
-             [0,3], # lu
-             [0,1], # ld
-             [2,3], # ru
-             [2,1], # rd
-            ]
+			ways=[
+					# l=0, d=1, r=2, u=3
+			 [3,0], # ul
+			 [3,2], # ur
+			 [1,0], # dl
+			 [1,2], # dr
+			 [0,3], # lu
+			 [0,1], # ld
+			 [2,3], # ru
+			 [2,1], # rd
+			]
 
-            minimal_way=[]
-            minimal_len=None
-            minimal_way_type=None
-            for w in ways:
-                tpoints=points[:]
-                cw=[]
-                for j in xrange(0,len(points)):
-                    p=get_boundaries(get_boundaries(tpoints)[w[0]])[w[1]]
-                    tpoints.remove(p[0])
-                    cw+=p
-                curlen = get_way_len(cw)
-                if minimal_len==None or curlen < minimal_len: 
-                    minimal_len=curlen
-                    minimal_way=cw
-                    minimal_way_type=w
-            
-            return minimal_way
+			minimal_way=[]
+			minimal_len=None
+			minimal_way_type=None
+			for w in ways:
+				tpoints=points[:]
+				cw=[]
+				for j in xrange(0,len(points)):
+					p=get_boundaries(get_boundaries(tpoints)[w[0]])[w[1]]
+					tpoints.remove(p[0])
+					cw+=p
+				curlen = get_way_len(cw)
+				if minimal_len==None or curlen < minimal_len: 
+					minimal_len=curlen
+					minimal_way=cw
+					minimal_way_type=w
+			
+			return minimal_way
 
-        if self.selected_paths == {} :
-            paths=self.paths
-            self.error(_("No paths are selected! Trying to work on all available paths."),"warning")
-        else :
-            paths = self.selected_paths
+		if self.selected_paths == {} :
+			paths=self.paths
+			self.error(_("No paths are selected! Trying to work on all available paths."),"warning")
+		else :
+			paths = self.selected_paths
 
-        self.check_dir() 
-        gcode = ""
+		self.check_dir() 
+		gcode = ""
+		gcode_outlines = ""
+		gcode_fillings = ""
+		gcode_images = ""
 
-        biarc_group = inkex.etree.SubElement( self.selected_paths.keys()[0] if len(self.selected_paths.keys())>0 else self.layers[0], inkex.addNS('g','svg') )
-        print_(("self.layers=",self.layers))
-        print_(("paths=",paths))
-        for layer in self.layers :
-            if layer in paths :
-                print_(("layer",layer))
-                p = []    
-                dxfpoints = []
-                for path in paths[layer] :
-                    print_(str(layer))
-                    if "d" not in path.keys() : 
-                        self.error(_("Warning: One or more paths dont have 'd' parameter, try to Ungroup (Ctrl+Shift+G) and Object to Path (Ctrl+Shift+C)!"),"selection_contains_objects_that_are_not_paths")
-                        continue                    
-                    csp = cubicsuperpath.parsePath(path.get("d"))
-                    csp = self.apply_transforms(path, csp)
-                    if path.get("dxfpoint") == "1":
-                        tmp_curve=self.transform_csp(csp, layer)
-                        x=tmp_curve[0][0][0][0]
-                        y=tmp_curve[0][0][0][1]
-                        print_("got dxfpoint (scaled) at (%f,%f)" % (x,y))
-                        dxfpoints += [[x,y]]
-                    else:
-                        p += csp
-                dxfpoints=sort_dxfpoints(dxfpoints)
-                curve = self.parse_curve(p, layer)
-                #self.draw_curve(curve, layer, biarc_group)
-                gcode += self.generate_gcode(curve, layer, 0)
-            
-        self.export_gcode(gcode)
+		biarc_group = inkex.etree.SubElement( self.selected_paths.keys()[0] if len(self.selected_paths.keys())>0 else self.layers[0], inkex.addNS('g','svg') )
+		print_(("self.layers=",self.layers))
+		print_(("paths=",paths))
+		for layer in self.layers :
+			if layer in paths :
+				print_(("layer",layer))
+				p = []	
+				dxfpoints = []
+				for path in paths[layer] :
+					print_(str(layer))
+					if "d" not in path.keys() : 
+						self.error(_("Warning: One or more paths dont have 'd' parameter, try to Ungroup (Ctrl+Shift+G) and Object to Path (Ctrl+Shift+C)!"),"selection_contains_objects_that_are_not_paths")
+						continue					
+					csp = cubicsuperpath.parsePath(path.get("d"))
+					csp = self.apply_transforms(path, csp)
+					if path.get("dxfpoint") == "1":
+						tmp_curve=self.transform_csp(csp, layer)
+						x=tmp_curve[0][0][0][0]
+						y=tmp_curve[0][0][0][1]
+						print_("got dxfpoint (scaled) at (%f,%f)" % (x,y))
+						dxfpoints += [[x,y]]
+					else:
+						p += csp
+				dxfpoints=sort_dxfpoints(dxfpoints)
+				curve = self.parse_curve(p, layer)
+				#self.draw_curve(curve, layer, biarc_group)
+				intensity = self.options.laser_intensity
+				layerId = layer.get('id') or '?'
+				pathId = path.get('id') or '?'
+				gcode_outlines += "; Layer: " + layerId + ", outline of " + pathId + "\n"
+				gcode_outlines += self.generate_gcode(curve, intensity)
+
+			if layer in self.filled_areas :
+				for fillpath in self.filled_areas[layer] :		
+					style = simplestyle.parseStyle(fillpath["style"])
+					intensity = color2intensity.color2intensity(style["stroke"])
+					csp = cubicsuperpath.parsePath(fillpath.get("d"))
+
+					# apply layer transform (whyever it is missing here?!)
+					matrix = simpletransform.parseTransform (layer.get('transform'))
+					simpletransform.applyTransformToPath(matrix, csp)
+					
+					# this parse_curve should do the transformation job originally
+					crve = self.parse_curve(csp, layer)
+					gcode_fillings += "; Layer: " + layer.get('id') + ", fill of " + fillpath.get('id') + "\n"
+					gcode_fillings += self.generate_gcode(crve, intensity)
+			
+			if layer in self.images :
+				for imgNode in self.images[layer] :
+					x = float(imgNode.get("x"))
+					y = float(imgNode.get("y"))
+					w = float(imgNode.get("width"))
+					h = float(imgNode.get("height"))
+					upperLeft = [x, y]
+					lowerRight = [x + w, y + h]
+					data = imgNode.get(inkex.addNS('href', 'xlink'))
+					mat = self.get_transforms(imgNode)
+					simpletransform.applyTransformToPoint(mat, upperLeft)
+					simpletransform.applyTransformToPoint(mat, lowerRight)
+					w = lowerRight[0] - upperLeft[0]
+					h = lowerRight[1] - upperLeft[1]
+					ip = ImageProcessor()
+					gcode = ip.base64_to_gcode(data, w, h, upperLeft[0], upperLeft[1])
+					gcode_images += gcode
+
+		self.export_gcode(gcode_images + "\n\n" + gcode_fillings + "\n\n" + gcode_outlines)
 
 ################################################################################
 ###
 ###        Orientation
 ###
 ################################################################################
-    def orientation(self, layer=None) :
-        print_("entering orientations")
-        if layer == None :
-            layer = self.current_layer if self.current_layer is not None else self.document.getroot()
-        if layer in self.orientation_points:
-            self.error(_("Active layer already has orientation points! Remove them or select another layer!"),"active_layer_already_has_orientation_points")
-        
-        orientation_group = inkex.etree.SubElement(layer, inkex.addNS('g','svg'), {"gcodetools":"Gcodetools orientation group"})
+	def orientation(self, layer=None) :
+		print_("entering orientations")
+		if layer == None :
+			layer = self.current_layer if self.current_layer is not None else self.document.getroot()
+		if layer in self.orientation_points:
+			self.error(_("Active layer already has orientation points! Remove them or select another layer!"),"active_layer_already_has_orientation_points")
+		
+		orientation_group = inkex.etree.SubElement(layer, inkex.addNS('g','svg'), {"gcodetools":"Gcodetools orientation group"})
 
-        # translate == ['0', '-917.7043']
-        if layer.get("transform") != None :
-            translate = layer.get("transform").replace("translate(", "").replace(")", "").split(",")
-        else :
-            translate = [0,0]
+		# translate == ['0', '-917.7043']
+		if layer.get("transform") != None :
+			translate = layer.get("transform").replace("translate(", "").replace(")", "").split(",")
+		else :
+			translate = [0,0]
 
-        # doc height in pixels (38 mm == 134.64566px)
-        h = self.getDocumentHeight();
-        doc_height = inkex.unittouu(h)
+		# doc height in pixels (38 mm == 134.64566px)
+		h = self.getDocumentHeight()
+		doc_height = inkex.unittouu(h)
+		viewBoxM = self.getDocumentViewBoxMatrix()
+		viewBoxScale = viewBoxM[1][1] # TODO use both coordinates.
 
-        #if self.document.getroot().get('height') == "100%" :
-        #    doc_height = 1052.3622047
-        #    print_("Overruding height from 100 percents to %s" % doc_height)
-            
-        print_("Document height: " + str(doc_height));
-            
-        if self.options.unit == "G21 (All units in mm)" : 
-            points = [[0.,0.,0.],[100.,0.,0.],[0.,100.,0.]]
-            orientation_scale = 3.5433070660
-            print_("orientation_scale < 0 ===> switching to mm units=%0.10f"%orientation_scale )
-        elif self.options.unit == "G20 (All units in inches)" :
-            points = [[0.,0.,0.],[5.,0.,0.],[0.,5.,0.]]
-            orientation_scale = 90
-            print_("orientation_scale < 0 ===> switching to inches units=%0.10f"%orientation_scale )
+		print_("Document height: " + str(doc_height), "viewBoxTransform:", viewBoxM);
+			
+		if self.options.unit == "G21 (All units in mm)" : 
+			points = [[0.,0.,0.],[100.,0.,0.],[0.,100.,0.]]
+			orientation_scale = 3.5433070660 / viewBoxScale
+			###orientation_scale = 1 # easier debugging
+			print_("orientation_scale < 0 ===> switching to mm units=%0.10f"%orientation_scale )
+		elif self.options.unit == "G20 (All units in inches)" :
+			points = [[0.,0.,0.],[5.,0.,0.],[0.,5.,0.]]
+			orientation_scale = 90 / viewBoxScale
+			print_("orientation_scale < 0 ===> switching to inches units=%0.10f"%orientation_scale )
 
-        points = points[:2]
+		points = points[:2]
 
-        print_(("using orientation scale",orientation_scale,"i=",points))
-        for i in points :
-            # X == Correct!
-            # si == x,y coordinate in px
-            # si have correct coordinates
-            # if layer have any tranform it will be in translate so lets add that
-            si = [i[0]*orientation_scale, (i[1]*orientation_scale)+float(translate[1])]
-            g = inkex.etree.SubElement(orientation_group, inkex.addNS('g','svg'), {'gcodetools': "Gcodetools orientation point (2 points)"})
-            inkex.etree.SubElement(    g, inkex.addNS('path','svg'), 
-                {
-                    'style':    "stroke:none;fill:#000000;",     
-                    'd':'m %s,%s 2.9375,-6.343750000001 0.8125,1.90625 6.843748640396,-6.84374864039 0,0 0.6875,0.6875 -6.84375,6.84375 1.90625,0.812500000001 z z' % (si[0], -si[1]+doc_height),
-                    'gcodetools': "Gcodetools orientation point arrow"
-                })
-            t = inkex.etree.SubElement(    g, inkex.addNS('text','svg'), 
-                {
-                    'style':    "font-size:10px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;fill:#000000;fill-opacity:1;stroke:none;",
-                    inkex.addNS("space","xml"):"preserve",
-                    'x':    str(si[0]+10),
-                    'y':    str(-si[1]-10+doc_height),
-                    'gcodetools': "Gcodetools orientation point text"
-                })
-            t.text = "(%s; %s; %s)" % (i[0],i[1],i[2])
+		print_(("using orientation scale",orientation_scale,"i=",points))
+		for i in points :
+			# X == Correct!
+			# si == x,y coordinate in px
+			# si have correct coordinates
+			# if layer have any tranform it will be in translate so lets add that
+			si = [i[0]*orientation_scale, (i[1]*orientation_scale)+float(translate[1])]
+			g = inkex.etree.SubElement(orientation_group, inkex.addNS('g','svg'), {'gcodetools': "Gcodetools orientation point (2 points)"})
+			inkex.etree.SubElement(	g, inkex.addNS('path','svg'), 
+				{
+					'style':	"stroke:none;fill:#000000;",	 
+					'd':'m %s,%s 2.9375,-6.343750000001 0.8125,1.90625 6.843748640396,-6.84374864039 0,0 0.6875,0.6875 -6.84375,6.84375 1.90625,0.812500000001 z z' % (si[0], -si[1]+doc_height),
+					'gcodetools': "Gcodetools orientation point arrow"
+				})
+			t = inkex.etree.SubElement(	g, inkex.addNS('text','svg'), 
+				{
+					'style':	"font-size:10px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;fill:#000000;fill-opacity:1;stroke:none;",
+					inkex.addNS("space","xml"):"preserve",
+					'x':	str(si[0]+10),
+					'y':	str(-si[1]-10+doc_height),
+					'gcodetools': "Gcodetools orientation point text"
+				})
+			t.text = "(%s; %s; %s)" % (i[0],i[1],i[2])
 
-             
+			 
 ################################################################################
 ###
 ###        Effect
