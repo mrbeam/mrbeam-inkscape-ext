@@ -137,29 +137,10 @@ class Effect:
                 stream = open(self.svg_file,'r')
         except:
             stream = sys.stdin
-        p = etree.XMLParser(huge_tree=True, ns_clean=True, recover=True)
+        p = etree.XMLParser(huge_tree=True)
         self.document = etree.parse(stream, parser=p)
         self.original_document = copy.deepcopy(self.document)
         stream.close()
-
-    def getDocumentHeight(self):
-        height = self.document.getroot().get('height')
-        if(height == None):
-            print("height property not set in root node, fetching from viewBox attribute")
-            vbox = self.document.getroot().get('viewBox')
-            if(vbox != None ):
-                parts = vbox.split(' ')
-                if(len(parts) == 4):
-                    height = parts[3]
-
-        if(height == "100%"):
-            height = 1052.3622047
-            print("Overriding height from 100 percents to %s" % height)
-
-        if(height == None):
-            height = 1052.3622047
-            print("Height not set. Assuming height is %s" % height)
-        return str(height)
 
     def getposinlayer(self):
         #defaults
