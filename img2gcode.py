@@ -28,14 +28,13 @@ import cStringIO
 
 class ImageProcessor():
 
-	def __init__( self , feedrate = 500, seekrate = 5000, contrast = 1.0, sharpening = 1.0, beam_diameter = 0.25, intensity_black = 1000, intensity_white = 0, material = "default"):
+	def __init__( self , feedrate = 500, contrast = 1.0, sharpening = 1.0, beam_diameter = 0.25, intensity_black = 1000, intensity_white = 0, material = "default"):
 		
 		self.beam = beam_diameter
 		self.intensity_black = intensity_black
 		self.intensity_white = intensity_white
 		self.material = material
 		self.feedrate = feedrate
-		self.seekrate = seekrate
 		self.contrastFactor = contrast
 		self.sharpeningFactor = sharpening
 
@@ -46,7 +45,7 @@ class ImageProcessor():
 		2.greyscale
 		3.contrast / curves (material)
 		"""
-
+		
 		dest_wpx = int(w/self.beam)
 		dest_hpx = int(h/self.beam)
 
@@ -168,10 +167,9 @@ if __name__ == "__main__":
 	opts.add_option("-x",   "--x-position", type="float", default="0", help="x position of the image on the working area", dest="x")
 	opts.add_option("-y",   "--y-position", type="float", default="0", help="y position of the image on the working area", dest="y")
 	opts.add_option("-w",   "--width", type="float", default=100, help="width of the image in mm", dest="width")
-	opts.add_option("",   "--height", type="float", default=100, help="height of the image in mm", dest="height")
+	opts.add_option("",   "--height", type="float", default=100, help="height of the image in mm. If omitted aspect ratio will be preserved.", dest="height")
 	opts.add_option("-d", "--beam_diameter", type="float", help="laser beam diameter, default 0.25mm", default=0.25, dest="beam_diameter")
 	opts.add_option("-s", "--speed", type="float", help="engraving speed, default 1000mm/min", default=1000, dest="feedrate")
-	opts.add_option("", "--travel-speed", type="float", help="travel speed on position moves, default 5000mm/min", default=5000, dest="seekrate")
 	opts.add_option("",   "--intensity-white", type="int", default="0", help="intensity for white pixels, default 0", dest="intensity_white")
 	opts.add_option("",   "--intensity-black", type="int", default="1000", help="intensity for black pixels, default 1000", dest="intensity_black")
 	opts.add_option("-c", "--contrast", type="float", help="contrast adjustment: 0.0 => gray, 1.0 => unchanged, >1.0 => intensified", default=1.0, dest="contrast")
@@ -180,7 +178,7 @@ if __name__ == "__main__":
 
 	(options, args) = opts.parse_args()
 	
-	ip = ImageProcessor(options.feedrate, options.seekrate, options.contrast, options.sharpening, options.beam_diameter, options.intensity_black, options.intensity_white, material = "default")
+	ip = ImageProcessor(options.feedrate, options.contrast, options.sharpening, options.beam_diameter, options.intensity_black, options.intensity_white, material = "default")
 	path = args[0]
 	gcode = ip.img_to_gcode(path, options.width, options.height, options.x, options.y)
 	#gcode = ip.base64_to_gcode(base64img, options.width, options.height, options.x, options.y)
@@ -194,11 +192,11 @@ G92X0Y0Z0
 G90
 M08
 G21
-G0 F5000
+G0
 '''
 		footer = '''
 M05S0
-G0 X0.000 Y0.000 F5000
+G0 X0.000 Y0.000
 M09
 M02
 '''
