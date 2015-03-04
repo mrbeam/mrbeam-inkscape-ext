@@ -2255,7 +2255,10 @@ class Laserengraver(inkex.Effect):
 
 	def export_gcode(self,gcode) :
 		f = open(self.options.directory+self.options.file, "w")
-		f.write(self.header + gcode + self.footer)
+		if(self.options.noheaders == 'false'):
+			f.write(self.header + gcode + self.footer)
+		else:
+			f.write(gcode)
 		f.close()
 
 	def __init__(self):
@@ -2276,6 +2279,8 @@ class Laserengraver(inkex.Effect):
 		self.OptionParser.add_option("",   "--fill-spacing",		action="store", type="float",		 dest="fill_spacing", default=0.25,			help="Distance between area filling lines. Increase for faster engraving, decrease for better quality. Minimum: laser beam diameter")				
 		self.OptionParser.add_option("",   "--cross-fill",		action="store", type="inkbool",		 dest="cross_fill", default=False,			help="Fill areas with grid ?")				
 		self.OptionParser.add_option("",   "--fill-angle",		action="store", type="float",		 dest="fill_angle", default=0.0,			help="Angle of the fill pattern. 0.0 means parallel to x-axis.")				
+		self.OptionParser.add_option("",   "--no-headers", type="string", help="omits Mr Beam start and end sequences", default="false", dest="noheaders")
+
 		
 	def parse_curve(self, p, layer, w = None, f = None):
 			c = []
@@ -3071,14 +3076,20 @@ class Laserengraver(inkex.Effect):
 					h = float(imgNode.get("height"))
 					upperLeft = [x, y]
 					lowerRight = [x + w, y + h]
-					data = imgNode.get(inkex.addNS('href', 'xlink'))
 					mat = self.get_transforms(imgNode)
 					simpletransform.applyTransformToPoint(mat, upperLeft)
 					simpletransform.applyTransformToPoint(mat, lowerRight)
 					w = lowerRight[0] - upperLeft[0]
 					h = lowerRight[1] - upperLeft[1]
 					ip = ImageProcessor()
-					gcode = ip.base64_to_gcode(data, w, h, upperLeft[0], upperLeft[1])
+					data = imgNode.get(inkex.addNS('href', 'xlink'))
+					gcode = ''
+					if(data is not None):
+						gcode = ip.base64_to_gcode(data, w, h, upperLeft[0], upperLeft[1])
+					else:
+						url = imgNode.get("href")
+						gcode = ip.imgurl_to_gcode(url, w,h, upperLeft[0], upperLeft[1])
+
 					gcode_images += gcode
 
 		self.export_gcode(gcode_images + "\n\n" + gcode_fillings + "\n\n" + gcode_outlines)

@@ -150,6 +150,14 @@ class ImageProcessor():
 		gcode = self.generate_gcode(pixArray, x, y, )
 		return gcode
 	
+	def imgurl_to_gcode(self, url, w,h, x,y):
+		from StringIO import StringIO
+		import urllib
+		img = Image.open(StringIO(urllib.urlopen(url).read()))
+		pixArray = self.img_prepare(img, w, h)
+		gcode = self.generate_gcode(pixArray, x, y, )
+		return gcode
+	
 	def twodigits(self, fl):
 		return "{0:.2f}".format(fl)
 	
