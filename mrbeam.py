@@ -2273,6 +2273,7 @@ class Laserengraver(inkex.Effect):
 		self.OptionParser.add_option("",   "--log-filename",				  action="store", type="string",	  dest="log_filename", default='',					help="Create log files")
 		self.OptionParser.add_option("",   "--engraving-draw-calculation-paths",action="store", type="inkbool",	dest="engraving_draw_calculation_paths", default=False,		help="Draw additional graphics to debug engraving path")
 		self.OptionParser.add_option("",   "--unit",						action="store", type="string",		 dest="unit", default="G21 (All units in mm)",		help="Units")
+		self.OptionParser.add_option("",   "--dpi",						action="store", type="float",		 dest="svgDPI", default="90",		help="dpi of the SVG file. Use 90 for Inkscape and 72 for Illustrator")
 		self.OptionParser.add_option("",   "--active-tab",					action="store", type="string",		 dest="active_tab", default='"Laser"',						help="Defines which tab is active")
 		self.OptionParser.add_option("",   "--biarc-max-split-depth",		action="store", type="int",		 dest="biarc_max_split_depth", default="4",			help="Defines maximum depth of splitting while approximating using biarcs.")				
 		self.OptionParser.add_option("",   "--fill-areas",		action="store", type="inkbool",		 dest="fill_areas", default=True,			help="Fill filled paths line by line.")				
@@ -3070,25 +3071,40 @@ class Laserengraver(inkex.Effect):
 			
 			if layer in self.images :
 				for imgNode in self.images[layer] :
+					# pt units
 					x = float(imgNode.get("x"))
 					y = float(imgNode.get("y"))
 					w = float(imgNode.get("width"))
 					h = float(imgNode.get("height"))
+					
 					upperLeft = [x, y]
 					lowerRight = [x + w, y + h]
+					# apply svg transforms
 					mat = self.get_transforms(imgNode)
 					simpletransform.applyTransformToPoint(mat, upperLeft)
 					simpletransform.applyTransformToPoint(mat, lowerRight)
-					w = lowerRight[0] - upperLeft[0]
-					h = lowerRight[1] - upperLeft[1]
+					
+					# to MM / inch conversion
+					if self.options.unit == "G21 (All units in mm)" : 
+						ptPerUnit = self.options.svgDPI / 25.4 # 3.5433070660 @ 90dpi
+					elif self.options.unit == "G20 (All units in inches)" :
+						ptPerUnit = self.options.svgDPI
+						
+					unitMat = [[1/ptPerUnit,0,0],[0,-1/ptPerUnit,297]] # unit conversion matrix 
+					simpletransform.applyTransformToPoint(unitMat, upperLeft)
+					simpletransform.applyTransformToPoint(unitMat, lowerRight)
+					wMM = lowerRight[0] - upperLeft[0]
+					hMM = abs(lowerRight[1] - upperLeft[1])
+					print('###', wMM, hMM, upperLeft)
+					
 					ip = ImageProcessor()
 					data = imgNode.get(inkex.addNS('href', 'xlink'))
 					gcode = ''
 					if(data is not None):
-						gcode = ip.base64_to_gcode(data, w, h, upperLeft[0], upperLeft[1])
+						gcode = ip.base64_to_gcode(data, wMM, hMM, upperLeft[0], upperLeft[1])
 					else:
 						url = imgNode.get("href")
-						gcode = ip.imgurl_to_gcode(url, w,h, upperLeft[0], upperLeft[1])
+						gcode = ip.imgurl_to_gcode(url, wMM,hMM, upperLeft[0], upperLeft[1])
 
 					gcode_images += gcode
 
@@ -3122,15 +3138,16 @@ class Laserengraver(inkex.Effect):
 			print_("Overruding height from 100 percents to %s" % doc_height)
 			
 		print_("Document height: " + str(doc_height));
-			
+		
 		if self.options.unit == "G21 (All units in mm)" : 
 			points = [[0.,0.,0.],[100.,0.,0.],[0.,100.,0.]]
-			orientation_scale = 3.5433070660
+			# orientation_scale = 3.5433070660
+			orientation_scale = self.options.svgDPI / 25.4 # 3.5433070660 @ 90dpi
 			###orientation_scale = 1 # easier debugging
 			print_("orientation_scale < 0 ===> switching to mm units=%0.10f"%orientation_scale )
 		elif self.options.unit == "G20 (All units in inches)" :
 			points = [[0.,0.,0.],[5.,0.,0.],[0.,5.,0.]]
-			orientation_scale = 90
+			orientation_scale = self.options.svgDPI
 			print_("orientation_scale < 0 ===> switching to inches units=%0.10f"%orientation_scale )
 
 		points = points[:2]

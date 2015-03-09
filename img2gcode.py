@@ -76,7 +76,9 @@ class ImageProcessor():
 
 	def generate_gcode(self, img, x,y):
 		direction_positive = True;
-		gcode = 'M3S0\nG0 X'+self.twodigits(x)+' Y'+self.twodigits(y) + ' S0\nF ' + str(self.feedrate) + '\n' # move to img start & set feedrate
+		gcode = 'G0 X'+self.twodigits(x)+' Y'+self.twodigits(y) + ' S0\n' # move to upper left
+		gcode += 'F ' + str(self.feedrate) + '\n' # set feedrate
+		gcode += 'M3S0\n' # enable laser
 		
 		(width, height) = img.size
 		
@@ -87,28 +89,23 @@ class ImageProcessor():
 
 			# proceed to next line 
 			nextline = 'G0 Y'+ self.twodigits(row_pos_y)+' S0\n' #; next line # TODO ... skip empty lines
-			
+			gcode += nextline
 			
 			# back and forth
 			pixelrange = range(0, width) if(direction_positive) else range(width-1, -1, -1)
 
 			lastInt = 0
-			nextlineNecessary = True
 			for i in pixelrange:
 				px = pix[i, row]
 				intensity = self.get_intensity(px)
 
 				if(intensity != lastInt ):
 					if(i != pixelrange[0]): # don't move after new line
-						if(nextlineNecessary):
-							gcode += nextline
-							nextlineNecessary = False
 							
 						xpos = x + self.beam * (i if (direction_positive) else (i+1)) # calculate position; backward lines need to be shifted by +1 beam diameter
 						if(lastInt <= 0): gcode += "G0 X" + self.twodigits(xpos) + " S0\n" # fast skipping whitespace 
 						else: gcode += "G1 X" + self.twodigits(xpos) + " S"+str(lastInt)+ "\n" # move until next intensity
 						
-					#gcode += "M3S" + str(intensity) + "\n" # set new intensity
 				else:
 					pass # combine equal intensity values to one move
 					
@@ -117,9 +114,7 @@ class ImageProcessor():
 			if(lastInt > 0):
 				end_of_line = x + pixelrange[-1] * self.beam 
 				gcode += "G1 X" + self.twodigits(end_of_line) + " S"+str(lastInt)+ "\n" # finish non-white line
-			
-			if(nextlineNecessary == False):
-				gcode += "M3S0\n" # end of pixel line
+
 			direction_positive = not direction_positive
 			
 		return gcode
