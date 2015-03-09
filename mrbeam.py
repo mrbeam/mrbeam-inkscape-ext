@@ -2254,11 +2254,20 @@ class Polygon:
 class Laserengraver(inkex.Effect):
 
 	def export_gcode(self,gcode) :
-		f = open(self.options.directory+self.options.file, "w")
-		if(self.options.noheaders == 'false'):
-			f.write(self.header + gcode + self.footer)
+
+		if(self.options.no_header):
+			self.header = ""
+			self.footer = "M05\n"
 		else:
-			f.write(gcode)
+			self.header = machine_settings.gcode_header
+			self.footer = machine_settings.gcode_footer
+		if self.options.unit == "G21 (All units in mm)" : 
+			self.header += "G21\n\n"
+		elif self.options.unit == "G20 (All units in inches)" :
+			self.header += "G20\n\n"
+			
+		f = open(self.options.directory + self.options.file, "w")
+		f.write(self.header + gcode + self.footer)
 		f.close()
 
 	def __init__(self):
@@ -2267,9 +2276,9 @@ class Laserengraver(inkex.Effect):
 		self.OptionParser.add_option("-f", "--filename",					action="store", type="string",		 dest="file", default="-1.0",						help="File name")			
 		self.OptionParser.add_option("",   "--add-numeric-suffix-to-filename", action="store", type="inkbool",	dest="add_numeric_suffix_to_filename", default=False,help="Add numeric suffix to filename")			
 		self.OptionParser.add_option("",   "--engraving-laser-speed",		action="store", type="int",		 dest="engraving_laser_speed", default="30",					help="Speed of laser during engraving")
-		self.OptionParser.add_option("",   "--laser-intensity",		action="store", type="int",		 dest="laser_intensity", default="1000",					help="Speed of laser during engraving")
+		self.OptionParser.add_option("",   "--laser-intensity",		action="store", type="int",		 dest="laser_intensity", default="1000",					help="Laser intensity during engraving")
 		self.OptionParser.add_option("",   "--suppress-all-messages",		 action="store", type="inkbool",	 dest="suppress_all_messages", default=True,				help="Check this to hide any messages during g-code generation")
-		self.OptionParser.add_option("",   "--create-log",					action="store", type="inkbool",	 dest="log_create_log", default=False,				help="Create log files")
+		self.OptionParser.add_option("",   "--create-log",					action="store", type="inkbool",	 dest="log_create_log", default=True,				help="Create log files")
 		self.OptionParser.add_option("",   "--log-filename",				  action="store", type="string",	  dest="log_filename", default='',					help="Create log files")
 		self.OptionParser.add_option("",   "--engraving-draw-calculation-paths",action="store", type="inkbool",	dest="engraving_draw_calculation_paths", default=False,		help="Draw additional graphics to debug engraving path")
 		self.OptionParser.add_option("",   "--unit",						action="store", type="string",		 dest="unit", default="G21 (All units in mm)",		help="Units")
@@ -2281,6 +2290,65 @@ class Laserengraver(inkex.Effect):
 		self.OptionParser.add_option("",   "--cross-fill",		action="store", type="inkbool",		 dest="cross_fill", default=False,			help="Fill areas with grid ?")				
 		self.OptionParser.add_option("",   "--fill-angle",		action="store", type="float",		 dest="fill_angle", default=0.0,			help="Angle of the fill pattern. 0.0 means parallel to x-axis.")				
 		self.OptionParser.add_option("",   "--no-headers", type="string", help="omits Mr Beam start and end sequences", default="false", dest="noheaders")
+
+	def getDocumentWidth(self):
+		width = self.document.getroot().get('width')
+		if(width == None):
+			vbox = self.document.getroot().get('viewBox')
+			if(vbox != None ):
+				print("width property not set in root node, fetching from viewBox attribute")
+				parts = vbox.split(' ')
+				if(len(parts) == 4):
+					width = parts[2]
+
+		if(width == "100%"):
+			width = 744.09 # 210mm @ 90dpi
+			print("Overriding width from 100 percents to %s" % width)
+
+		if(width == None):
+			width = 744.09 # 210mm @ 90dpi
+			print("width not set. Assuming width is %s" % width)
+		return str(width)
+
+	def getDocumentHeight(self):
+		height = self.document.getroot().get('height')
+		if(height == None):
+			print("height property not set in root node, fetching from viewBox attribute")
+			vbox = self.document.getroot().get('viewBox')
+			if(vbox != None ):
+				parts = vbox.split(' ')
+				if(len(parts) == 4):
+					height = parts[3]
+
+		if(height == "100%"):
+			height = 1052.3622047 # 297mm @ 90dpi
+			print("Overriding height from 100 percents to %s" % height)
+
+		if(height == None):
+			height = 1052.3622047 # 297mm @ 90dpi
+			print("Height not set. Assuming height is %s" % height)
+		return str(height)
+
+	def getDocumentViewBoxMatrix(self):
+		vbox = self.document.getroot().get('viewBox')
+		if(vbox != None ):
+			print_("Found viewbox attribute", vbox)
+			widthPx = inkex.unittouu(self.getDocumentWidth())
+			heightPx = inkex.unittouu(self.getDocumentHeight())
+			parts = vbox.split(' ')
+			if(len(parts) == 4):
+				offsetVBoxX = float(parts[0])
+				offsetVBoxY = float(parts[1])
+				widthVBox = float(parts[2]) - float(parts[0])
+				heightVBox = float(parts[3]) - float(parts[1])
+
+				fx = widthPx / widthVBox
+				fy = heightPx / heightVBox
+				dx = offsetVBoxX * fx
+				dy = offsetVBoxY * fy
+				return [[fx,0,0],[0,fy,0], [dx,dy,1]]
+
+		return [[1,0,0],[0,1,0], [0,0,1]]
 
 		
 	def parse_curve(self, p, layer, w = None, f = None):
@@ -2406,12 +2474,7 @@ class Laserengraver(inkex.Effect):
 				self.options.directory += "/"
 		print_("Checking direcrory: '%s'"%self.options.directory)
 		if (os.path.isdir(self.options.directory)):
-			self.header = machine_settings.gcode_header
-			self.footer = machine_settings.gcode_footer
-			if self.options.unit == "G21 (All units in mm)" : 
-				self.header += "G21\n\n"
-			elif self.options.unit == "G20 (All units in inches)" :
-				self.header += "G20\n\n"
+			pass
 		else: 
 			self.error(_("Directory does not exist! Please specify existing directory at Preferences tab!"),"error")
 			return False
@@ -2686,12 +2749,13 @@ class Laserengraver(inkex.Effect):
 		if node.get("id") in self.selected :
 			self.selected_paths[layer] = self.selected_paths[layer] + [node] if layer in self.selected_paths else [node]  
 		
-		styles = simplestyle.parseStyle(node.get("style"))
-		fillColor = styles["fill"]
-		if fillColor != "none" and fillColor != '' and self.options.fill_areas == True :
-			ig = infill_generator.InfillGenerator( self.document, [node] )
-			fillings = ig.effect(self.options.fill_spacing, self.options.cross_fill, self.options.fill_angle)
-			self.filled_areas[layer] = self.filled_areas[layer] + fillings if layer in self.filled_areas else fillings
+		if self.options.fill_areas == True:
+			styles = simplestyle.parseStyle(node.get("style"))
+			if "fill" in styles and styles["fill"] != "none" and styles["fill"] != '' :
+				#fillColor = styles["fill"]
+				ig = infill_generator.InfillGenerator( self.document, [node] )
+				fillings = ig.effect(self.options.fill_spacing, self.options.cross_fill, self.options.fill_angle)
+				self.filled_areas[layer] = self.filled_areas[layer] + fillings if layer in self.filled_areas else fillings
 
 	def handle_image(self, imgNode, layer):
 		self.images[layer] = self.images[layer] + imgNode if layer in self.images else [imgNode]
@@ -3051,7 +3115,9 @@ class Laserengraver(inkex.Effect):
 				curve = self.parse_curve(p, layer)
 				#self.draw_curve(curve, layer, biarc_group)
 				intensity = self.options.laser_intensity
-				gcode_outlines += "; Layer: " + layer.get('id') + ", outline of " + path.get('id') + "\n"
+				layerId = layer.get('id') or '?'
+				pathId = path.get('id') or '?'
+				gcode_outlines += "; Layer: " + layerId + ", outline of " + pathId + "\n"
 				gcode_outlines += self.generate_gcode(curve, intensity)
 
 			if layer in self.filled_areas :
@@ -3131,23 +3197,21 @@ class Laserengraver(inkex.Effect):
 			translate = [0,0]
 
 		# doc height in pixels (38 mm == 134.64566px)
-		doc_height = inkex.unittouu(self.document.getroot().get('height'))
-
-		if self.document.getroot().get('height') == "100%" :
-			doc_height = 1052.3622047
-			print_("Overruding height from 100 percents to %s" % doc_height)
-			
-		print_("Document height: " + str(doc_height));
+		h = self.getDocumentHeight()
+		doc_height = inkex.unittouu(h)
+		viewBoxM = self.getDocumentViewBoxMatrix()
+		viewBoxScale = viewBoxM[1][1] # TODO use both coordinates.
 		
+		print_("Document height: " + str(doc_height), "viewBoxTransform:", viewBoxM);
+			
 		if self.options.unit == "G21 (All units in mm)" : 
 			points = [[0.,0.,0.],[100.,0.,0.],[0.,100.,0.]]
-			# orientation_scale = 3.5433070660
-			orientation_scale = self.options.svgDPI / 25.4 # 3.5433070660 @ 90dpi
+			orientation_scale = (self.options.svgDPI / 25.4) / viewBoxScale # 3.5433070660 @ 90dpi
 			###orientation_scale = 1 # easier debugging
 			print_("orientation_scale < 0 ===> switching to mm units=%0.10f"%orientation_scale )
 		elif self.options.unit == "G20 (All units in inches)" :
 			points = [[0.,0.,0.],[5.,0.,0.],[0.,5.,0.]]
-			orientation_scale = self.options.svgDPI
+			orientation_scale = self.options.svgDPI / viewBoxScale
 			print_("orientation_scale < 0 ===> switching to inches units=%0.10f"%orientation_scale )
 
 		points = points[:2]

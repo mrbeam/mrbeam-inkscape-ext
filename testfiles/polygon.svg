@@ -14,7 +14,7 @@
    id="svg2"
    version="1.1"
    inkscape:version="0.48.3.1 r9886"
-   sodipodi:docname="polygon.svg">
+   sodipodi:docname="rectangle.svg">
   <defs
      id="defs4" />
   <sodipodi:namedview
@@ -26,7 +26,7 @@
      inkscape:pageshadow="2"
      inkscape:zoom="0.98994949"
      inkscape:cx="254.34242"
-     inkscape:cy="234.36938"
+     inkscape:cy="233.35923"
      inkscape:document-units="px"
      inkscape:current-layer="layer1"
      showgrid="false"
@@ -52,11 +52,13 @@
      inkscape:label="Layer 1"
      inkscape:groupmode="layer"
      id="layer1"
-     transform="translate(-400,300)">
+     transform="translate(0,-2.5390623e-6)">
+
     <polygon
        points="542.782,1030.858 542.782,1135.427 647.193,1135.427 666.656,1161.167 666.656,1135.427 688.374,1135.427 688.374,1030.858 "
        id="polygon8"
-       transform="translate(400,-300)"
-       style="fill:#00ff00;stroke:#000000" />
+       transform="translate(-442.282,-309.30482)"
+       style="fill:none;stroke:#000000" />
+
   </g>
 </svg>

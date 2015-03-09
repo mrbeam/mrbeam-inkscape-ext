@@ -156,7 +156,8 @@ class Effect:
 
         xattr = self.document.xpath('//sodipodi:namedview/@inkscape:cx', namespaces=NSS)
         yattr = self.document.xpath('//sodipodi:namedview/@inkscape:cy', namespaces=NSS)
-        doc_height = unittouu(self.document.getroot().get('height'))
+        height = self.getDocumentHeight();
+        doc_height = unittouu(height)
         if xattr and yattr:
             x = xattr[0]
             y = yattr[0]
