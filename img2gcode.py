@@ -56,7 +56,8 @@ class ImageProcessor():
 		#img = img.transpose(Image.FLIP_LEFT_RIGHT)
 
 		# greyscale
-		img = img.convert('L') 
+		img = img.convert('LA') 
+		img.save("/tmp/pillow_greyscale.png")
 		
 		# contrast 
 		contrast = ImageEnhance.Contrast(img)
@@ -157,7 +158,11 @@ class ImageProcessor():
 		return "{0:.2f}".format(fl)
 	
 	def get_intensity(self, pixel):
-		intensity = (1.0 - pixel/255.0) * (self.intensity_black - self.intensity_white) + self.intensity_white
+		brightness = pixel[0] # 0..255
+		opacity = pixel[1] # 0..255
+		composite = brightness*(opacity/255.0) + 255*(1 - opacity/255.0) # Cout = ColorA*AlphaA + White*(1-AlphaA)
+		
+		intensity = (1.0 - composite/255.0) * (self.intensity_black - self.intensity_white) + self.intensity_white
 		return int(intensity)
 
 

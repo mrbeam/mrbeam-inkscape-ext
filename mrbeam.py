@@ -2255,7 +2255,7 @@ class Laserengraver(inkex.Effect):
 
 	def export_gcode(self,gcode) :
 
-		if(self.options.no_header):
+		if(self.options.noheaders):
 			self.header = ""
 			self.footer = "M05\n"
 		else:
@@ -3147,8 +3147,12 @@ class Laserengraver(inkex.Effect):
 					lowerRight = [x + w, y + h]
 					# apply svg transforms
 					mat = self.get_transforms(imgNode)
-					simpletransform.applyTransformToPoint(mat, upperLeft)
-					simpletransform.applyTransformToPoint(mat, lowerRight)
+					docH = self.getDocumentHeight()
+					print("--- ", docH)
+					invertYMat = [[1,0,0],[0,-1,float(docH)]]
+					_mat = simpletransform.composeTransform(mat, invertYMat)
+					simpletransform.applyTransformToPoint(_mat, upperLeft)
+					simpletransform.applyTransformToPoint(_mat, lowerRight)
 					
 					# to MM / inch conversion
 					if self.options.unit == "G21 (All units in mm)" : 
@@ -3156,7 +3160,7 @@ class Laserengraver(inkex.Effect):
 					elif self.options.unit == "G20 (All units in inches)" :
 						ptPerUnit = self.options.svgDPI
 						
-					unitMat = [[1/ptPerUnit,0,0],[0,-1/ptPerUnit,297]] # unit conversion matrix 
+					unitMat = [[1/ptPerUnit,0,0],[0,1/ptPerUnit,0]] # unit conversion matrix 
 					simpletransform.applyTransformToPoint(unitMat, upperLeft)
 					simpletransform.applyTransformToPoint(unitMat, lowerRight)
 					wMM = lowerRight[0] - upperLeft[0]
