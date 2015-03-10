@@ -121,7 +121,7 @@ class ImageProcessor():
 		return gcode
 
 		
-
+	# x,y are the lowerLeft of the image
 	def base64_to_gcode(self, base64str, w,h, x,y):
 		
 		# remove "data:image/png;base64," and add a "\n" in front to get proper base64 encoding
@@ -137,21 +137,23 @@ class ImageProcessor():
 		img = Image.open(image_string)
 
 		pixArray = self.img_prepare(img, w, h)
-		gcode = self.generate_gcode(pixArray, x, y, )
+		gcode = self.generate_gcode(pixArray, x, y)
 		return gcode
 	
+	# x,y are the lowerLeft of the image
 	def img_to_gcode(self, path, w,h, x,y):
 		img = Image.open(path)
 		pixArray = self.img_prepare(img, w, h)
-		gcode = self.generate_gcode(pixArray, x, y, )
+		gcode = self.generate_gcode(pixArray, x, y)
 		return gcode
 	
+	# x,y are the lowerLeft of the image
 	def imgurl_to_gcode(self, url, w,h, x,y):
 		from StringIO import StringIO
 		import urllib
 		img = Image.open(StringIO(urllib.urlopen(url).read()))
 		pixArray = self.img_prepare(img, w, h)
-		gcode = self.generate_gcode(pixArray, x, y, )
+		gcode = self.generate_gcode(pixArray, x, y)
 		return gcode
 	
 	def twodigits(self, fl):

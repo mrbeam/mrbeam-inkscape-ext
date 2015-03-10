@@ -3171,10 +3171,10 @@ class Laserengraver(inkex.Effect):
 					data = imgNode.get(inkex.addNS('href', 'xlink'))
 					gcode = ''
 					if(data is not None):
-						gcode = ip.base64_to_gcode(data, wMM, hMM, upperLeft[0], upperLeft[1])
+						gcode = ip.base64_to_gcode(data, wMM, hMM, upperLeft[0], lowerRight[1])
 					else:
 						url = imgNode.get("href")
-						gcode = ip.imgurl_to_gcode(url, wMM,hMM, upperLeft[0], upperLeft[1])
+						gcode = ip.imgurl_to_gcode(url, wMM,hMM, upperLeft[0], lowerRight[1])
 
 					gcode_images += gcode
 
