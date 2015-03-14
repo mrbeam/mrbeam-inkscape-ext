@@ -2290,6 +2290,11 @@ class Laserengraver(inkex.Effect):
 		self.OptionParser.add_option("",   "--cross-fill",		action="store", type="inkbool",		 dest="cross_fill", default=False,			help="Fill areas with grid ?")				
 		self.OptionParser.add_option("",   "--fill-angle",		action="store", type="float",		 dest="fill_angle", default=0.0,			help="Angle of the fill pattern. 0.0 means parallel to x-axis.")				
 		self.OptionParser.add_option("",   "--no-headers", type="string", help="omits Mr Beam start and end sequences", default="false", dest="noheaders")
+		self.OptionParser.add_option("",   "--img-intensity-white", type="int", default="0", help="intensity for white pixels, default 0", dest="intensity_white")
+		self.OptionParser.add_option("",   "--img-intensity-black", type="int", default="1000", help="intensity for black pixels, default 1000", dest="intensity_black")
+		self.OptionParser.add_option("",   "--img-speed-white", type="int", default="500", help="speed for white pixels, default 500", dest="speed_white")
+		self.OptionParser.add_option("",   "--img-speed-black", type="int", default="30", help="speed for black pixels, default 30", dest="speed_black")
+		self.OptionParser.add_option("-t", "--pierce-time", type="int", default="500", help="time to rest after laser is switched on in milliseconds", dest="pierce_time")
 
 	def getDocumentWidth(self):
 		width = self.document.getroot().get('width')
@@ -3142,13 +3147,11 @@ class Laserengraver(inkex.Effect):
 					y = float(imgNode.get("y"))
 					w = float(imgNode.get("width"))
 					h = float(imgNode.get("height"))
-					
 					upperLeft = [x, y]
 					lowerRight = [x + w, y + h]
 					# apply svg transforms
 					mat = self.get_transforms(imgNode)
 					docH = self.getDocumentHeight()
-					print("--- ", docH)
 					invertYMat = [[1,0,0],[0,-1,float(docH)]]
 					_mat = simpletransform.composeTransform(mat, invertYMat)
 					simpletransform.applyTransformToPoint(_mat, upperLeft)
@@ -3165,9 +3168,8 @@ class Laserengraver(inkex.Effect):
 					simpletransform.applyTransformToPoint(unitMat, lowerRight)
 					wMM = lowerRight[0] - upperLeft[0]
 					hMM = abs(lowerRight[1] - upperLeft[1])
-					print('###', wMM, hMM, upperLeft)
 					
-					ip = ImageProcessor()
+					ip = ImageProcessor(self.options.speed_black, contrast = 1.0, sharpening = 1.0, beam_diameter = 0.25, intensity_black = self.options.intensity_black, intensity_white = self.options.intensity_white, speed_black = self.options.speed_black, speed_white = self.options.speed_white, pierce_time = self.options.pierce_time, material = "default")
 					data = imgNode.get(inkex.addNS('href', 'xlink'))
 					gcode = ''
 					if(data is not None):
