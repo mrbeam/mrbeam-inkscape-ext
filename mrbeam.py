@@ -2526,8 +2526,7 @@ class Laserengraver(inkex.Effect):
 			r = ''	
 			for i in range(6):
 				if c[i]!=None:
-					#r += s[i] + ("%f3" % (round(c[i],4))) #.rstrip('0')
-					r += s[i] + "{0:.3f}".format(c[i]) # three digit limit, no 0 stripping as this would lead to "0." for 0.000
+					r += s[i] + ("%f3" % (round(c[i],4))) # truncating leads to invalid GCODE ID33
 			return r
 
 		def calculate_angle(a, current_a):
