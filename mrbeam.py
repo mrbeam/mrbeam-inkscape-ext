@@ -2271,8 +2271,8 @@ class Laserengraver(inkex.Effect):
 
 	def __init__(self):
 		inkex.Effect.__init__(self)
-		self.OptionParser.add_option("-d", "--directory",					action="store", type="string",		 dest="directory", default="/home/",					help="Directory for gcode file")
-		self.OptionParser.add_option("-f", "--filename",					action="store", type="string",		 dest="file", default="-1.0",						help="File name")			
+		self.OptionParser.add_option("-d", "--directory",					action="store", type="string",		 dest="directory", default=None,					help="Directory for gcode file")
+		self.OptionParser.add_option("-f", "--filename",					action="store", type="string",		 dest="file", default=None,						help="File name")			
 		self.OptionParser.add_option("",   "--add-numeric-suffix-to-filename", action="store", type="inkbool",	dest="add_numeric_suffix_to_filename", default=False,help="Add numeric suffix to filename")			
 		self.OptionParser.add_option("",   "--engraving-laser-speed",		action="store", type="int",		 dest="engraving_laser_speed", default="30",					help="Speed of laser during engraving")
 		self.OptionParser.add_option("",   "--laser-intensity",		action="store", type="int",		 dest="laser_intensity", default="1000",					help="Laser intensity during engraving")
@@ -2288,7 +2288,7 @@ class Laserengraver(inkex.Effect):
 		self.OptionParser.add_option("",   "--cross-fill",		action="store", type="inkbool",		 dest="cross_fill", default=False,			help="Fill areas with grid ?")				
 		self.OptionParser.add_option("",   "--fill-angle",		action="store", type="float",		 dest="fill_angle", default=0.0,			help="Angle of the fill pattern. 0.0 means parallel to x-axis.")				
 		self.OptionParser.add_option("",   "--no-header",		action="store", type="inkbool",		 dest="no_header", default=False,			help="No machine specific headers or footers")				
-
+		
 	def getDocumentWidth(self):
 		width = self.document.getroot().get('width')
 		if(width == None):
@@ -2526,7 +2526,8 @@ class Laserengraver(inkex.Effect):
 			r = ''	
 			for i in range(6):
 				if c[i]!=None:
-					r += s[i] + ("%f3" % (round(c[i],4))) # truncating leads to invalid GCODE ID33
+					r += s[i] + ("%f" % (round(c[i],4))) # truncating leads to invalid GCODE ID33
+					#r += s[i] + "{0:.3f}".format(c[i]) # three digit limit, no 0 stripping as this would lead to "0." for 0.000
 			return r
 
 		def calculate_angle(a, current_a):
@@ -3227,6 +3228,13 @@ class Laserengraver(inkex.Effect):
 	def effect(self) :
 		global options
 		options = self.options
+		if(self.options.file == None):
+			without_path = os.path.basename(self.svg_file)
+			self.options.file = os.path.splitext(without_path)[0] + ".gcode"
+			print("using default filename", self.options.file)
+		if(self.options.directory == None):
+			self.options.directory = os.path.dirname(os.path.realpath(self.svg_file))
+			print("using default folder", self.options.directory)
 		options.self = self
 		options.doc_root = self.document.getroot()
 		# define print_ function 
