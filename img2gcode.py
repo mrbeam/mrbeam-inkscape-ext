@@ -261,14 +261,15 @@ if __name__ == "__main__":
 	opts.add_option("-t", "--pierce-time", type="int", default="500", help="time to rest after laser is switched on in milliseconds", dest="pierce_time")
 	opts.add_option("-c", "--contrast", type="float", help="contrast adjustment: 0.0 => gray, 1.0 => unchanged, >1.0 => intensified", default=1.0, dest="contrast")
 	opts.add_option("", "--sharpening", type="float", help="image sharpening: 0.0 => blurred, 1.0 => unchanged, >1.0 => sharpened", default=1.0, dest="sharpening")
-	opts.add_option("", "--dither", type="bool", help="convert image to black and white pixels", default=False, dest="dither")
+	opts.add_option("", "--dither", type="string", help="convert image to black and white pixels", default="false", dest="dither")
 	opts.add_option("", "--no-headers", type="string", help="omits Mr Beam start and end sequences", default="false", dest="noheaders")
 
 	(options, args) = opts.parse_args()
 	
+	boolDither = (options.dither == "true")
 	ip = ImageProcessor(options.feedrate, options.contrast, options.sharpening, options.beam_diameter, 
 	options.intensity_black, options.intensity_white, options.speed_black, options.speed_white, 
-	options.dither, options.pierce_time, material = "default")
+	boolDither, options.pierce_time, material = "default")
 	path = args[0]
 	gcode = ip.img_to_gcode(path, options.width, options.height, options.x, options.y)
 	#gcode = ip.base64_to_gcode(base64img, options.width, options.height, options.x, options.y)
