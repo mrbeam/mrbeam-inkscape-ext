@@ -2780,6 +2780,8 @@ class Laserengraver(inkex.Effect):
 		def recursive_search(g, layer, selected=False):
 			items = g.getchildren()
 			items.reverse()
+			if(len(items) > 0):
+				print("recursive search: ", len(items), g.get("id"))
 			for i in items:
 				if selected:
 					self.selected[i.get("id")] = i
@@ -2931,9 +2933,9 @@ class Laserengraver(inkex.Effect):
 						print_("ignoring not supported tag ", i.tag) #, "\n", inkex.etree.tostring(i))
 					
 		recursive_search(self.document.getroot(),self.document.getroot())
-		print_("self.layers", len(self.layers))
-		print_("self.selected_paths", len(self.selected_paths))
-		print_("self.paths", len(self.paths))
+		print("self.layers", len(self.layers))
+		print("self.selected_paths", len(self.selected_paths))
+		print("self.paths", len(self.paths))
 
 
 	def get_orientation_points(self,g):
@@ -3087,15 +3089,17 @@ class Laserengraver(inkex.Effect):
 		gcode_images = ""
 
 		biarc_group = inkex.etree.SubElement( self.selected_paths.keys()[0] if len(self.selected_paths.keys())>0 else self.layers[0], inkex.addNS('g','svg') )
-		print_(("self.layers=",self.layers))
-		print_(("paths=",paths))
+		#print_(("self.layers=",self.layers))
+		#print_(("paths=",paths))
+		
+		print("processing ", len(self.layers), " layers")
 		for layer in self.layers :
 			if layer in paths :
-				print_(("layer",layer))
+				print(("layer",layer.get('id')))
 				p = []	
 				dxfpoints = []
 				for path in paths[layer] :
-					print_(str(layer))
+					print("path", layer.get('id'), path.get('id'))
 					if "d" not in path.keys() : 
 						self.error(_("Warning: One or more paths dont have 'd' parameter, try to Ungroup (Ctrl+Shift+G) and Object to Path (Ctrl+Shift+C)!"),"selection_contains_objects_that_are_not_paths")
 						continue					
