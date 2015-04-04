@@ -2380,7 +2380,8 @@ class Laserengraver(inkex.Effect):
 #					l1 = biarc(sp1,sp2,0,0) if w==None else biarc(sp1,sp2,-f(w[k][i-1]),-f(w[k][i]))
 #					print_((-f(w[k][i-1]),-f(w[k][i]), [i1[5] for i1 in l1]) )
 				c += [ [ [subpath[-1][1][0],subpath[-1][1][1]]  ,'end',0,0] ]
-				print_("Curve: " + str(c))
+
+			#print_("Curve: " + str(c))
 			return c
 
 
