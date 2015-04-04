@@ -1364,12 +1364,13 @@ def cubic_solver(a,b,c,d):
 ################################################################################
 
 def print_(*arg):
-	f = open(options.log_filename,"a")
-	for s in arg :
-		s = str(unicode(s).encode('unicode_escape'))+" "
-		f.write( s )
-	f.write("\n")
-	f.close()
+	if(options.log_filename != ''):
+		f = open(options.log_filename,"a")
+		for s in arg :
+			s = str(unicode(s).encode('unicode_escape'))+" "
+			f.write( s )
+		f.write("\n")
+		f.close()
 
 
 ################################################################################
@@ -2277,13 +2278,13 @@ class Laserengraver(inkex.Effect):
 		self.OptionParser.add_option("",   "--engraving-laser-speed",		action="store", type="int",		 dest="engraving_laser_speed", default="30",					help="Speed of laser during engraving")
 		self.OptionParser.add_option("",   "--laser-intensity",		action="store", type="int",		 dest="laser_intensity", default="1000",					help="Laser intensity during engraving")
 		self.OptionParser.add_option("",   "--suppress-all-messages",		 action="store", type="inkbool",	 dest="suppress_all_messages", default=True,				help="Check this to hide any messages during g-code generation")
-		self.OptionParser.add_option("",   "--create-log",					action="store", type="inkbool",	 dest="log_create_log", default=True,				help="Create log files")
+		self.OptionParser.add_option("",   "--create-log",					action="store", type="inkbool",	 dest="log_create_log", default=False,				help="")
 		self.OptionParser.add_option("",   "--log-filename",				  action="store", type="string",	  dest="log_filename", default='',					help="Create log files")
 		self.OptionParser.add_option("",   "--engraving-draw-calculation-paths",action="store", type="inkbool",	dest="engraving_draw_calculation_paths", default=False,		help="Draw additional graphics to debug engraving path")
 		self.OptionParser.add_option("",   "--unit",						action="store", type="string",		 dest="unit", default="G21 (All units in mm)",		help="Units")
 		self.OptionParser.add_option("",   "--active-tab",					action="store", type="string",		 dest="active_tab", default='"Laser"',						help="Defines which tab is active")
 		self.OptionParser.add_option("",   "--biarc-max-split-depth",		action="store", type="int",		 dest="biarc_max_split_depth", default="4",			help="Defines maximum depth of splitting while approximating using biarcs.")				
-		self.OptionParser.add_option("",   "--fill-areas",		action="store", type="inkbool",		 dest="fill_areas", default=True,			help="Fill filled paths line by line.")				
+		self.OptionParser.add_option("",   "--fill-areas",		action="store", type="inkbool",		 dest="fill_areas", default=False,			help="Fill filled paths line by line.")				
 		self.OptionParser.add_option("",   "--fill-spacing",		action="store", type="float",		 dest="fill_spacing", default=0.25,			help="Distance between area filling lines. Increase for faster engraving, decrease for better quality. Minimum: laser beam diameter")				
 		self.OptionParser.add_option("",   "--cross-fill",		action="store", type="inkbool",		 dest="cross_fill", default=False,			help="Fill areas with grid ?")				
 		self.OptionParser.add_option("",   "--fill-angle",		action="store", type="float",		 dest="fill_angle", default=0.0,			help="Angle of the fill pattern. 0.0 means parallel to x-axis.")				
@@ -2367,6 +2368,8 @@ class Laserengraver(inkex.Effect):
 					dist = max(   ( -( ( end[0]-start[0])**2+(end[1]-start[1])**2 ) ,i)	,   dist )
 				keys += [k[dist[1]]]
 				del k[dist[1]]
+				
+			#keys = range(1,len(p)) # debug unsorted.
 			for k in keys:
 				subpath = p[k]
 				c += [ [	[subpath[0][1][0],subpath[0][1][1]]   , 'move', 0, 0] ]
@@ -3243,7 +3246,7 @@ class Laserengraver(inkex.Effect):
 		options.doc_root = self.document.getroot()
 		# define print_ function 
 		global print_
-		if self.options.log_create_log :
+		if self.options.log_filename != '' :
 			try :
 				if os.path.isfile(self.options.log_filename) : os.remove(self.options.log_filename)
 				f = open(self.options.log_filename,"a")
