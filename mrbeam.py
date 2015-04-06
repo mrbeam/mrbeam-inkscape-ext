@@ -3096,14 +3096,14 @@ class Laserengraver(inkex.Effect):
 		#print_(("self.layers=",self.layers))
 		#print_(("paths=",paths))
 		
-		print("processing ", len(self.layers), " layers")
+		#print("processing ", len(self.layers), " layers")
 		for layer in self.layers :
 			if layer in paths :
-				print(("layer",layer.get('id')))
+				#print(("layer",layer.get('id')))
 				p = []	
 				dxfpoints = []
 				for path in paths[layer] :
-					print("path", layer.get('id'), path.get('id'))
+					#print("path", layer.get('id'), path.get('id'))
 					if "d" not in path.keys() : 
 						self.error(_("Warning: One or more paths dont have 'd' parameter, try to Ungroup (Ctrl+Shift+G) and Object to Path (Ctrl+Shift+C)!"),"selection_contains_objects_that_are_not_paths")
 						continue					
