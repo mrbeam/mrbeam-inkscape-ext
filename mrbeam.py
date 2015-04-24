@@ -2746,19 +2746,55 @@ class Laserengraver(inkex.Effect):
 		recursive(self.document.getroot())
 
 	def handle_node(self, node, layer):
-		simpletransform.fuseTransform(node)
-		self.paths[layer] = self.paths[layer] + [node] if layer in self.paths else [node]
-		if node.get("id") in self.selected :
-			self.selected_paths[layer] = self.selected_paths[layer] + [node] if layer in self.selected_paths else [node]  
-		
-		if self.options.fill_areas == True:
-			styles = simplestyle.parseStyle(node.get("style"))
-			if "fill" in styles and styles["fill"] != "none" and styles["fill"] != '' :
-				#fillColor = styles["fill"]
-				ig = infill_generator.InfillGenerator( self.document, [node] )
-				fillings = ig.effect(self.options.fill_spacing, self.options.cross_fill, self.options.fill_angle)
-				self.filled_areas[layer] = self.filled_areas[layer] + fillings if layer in self.filled_areas else fillings
+		styles = simplestyle.parseStyle(node.get("style"))
+		visible = (self.has_stroke(styles) and self.stroke_visible(styles)) or (self.has_fill(styles) and self.fill_visible(styles))
 
+		if(visible):
+			simpletransform.fuseTransform(node)
+			self.paths[layer] = self.paths[layer] + [node] if layer in self.paths else [node]
+			if node.get("id") in self.selected :
+				self.selected_paths[layer] = self.selected_paths[layer] + [node] if layer in self.selected_paths else [node]  
+
+			if self.options.fill_areas == True:
+
+				if fill_visible(styles):
+					#fillColor = styles["fill"]
+					ig = infill_generator.InfillGenerator( self.document, [node] )
+					fillings = ig.effect(self.options.fill_spacing, self.options.cross_fill, self.options.fill_angle)
+					self.filled_areas[layer] = self.filled_areas[layer] + fillings if layer in self.filled_areas else fillings
+
+	def has_stroke(self, styles):
+		return "stroke" in styles and styles["stroke"] != 'none' and styles["stroke"] != ''
+	
+	def stroke_visible(self, styles):
+		strokeWidth = 1
+		if("stroke-width" in styles):
+			strokeWidthStr = styles["stroke-width"]
+			try:
+				strokeWidth = float(re.sub(r'[^\d.]+', '', strokeWidthStr))				
+			except ValueError:
+				pass
+			
+		stroke_opacity = 1
+		if ("stroke-opacity" in styles):
+			stroke_opacity = float(styles["stroke-opacity"])
+		opacity = 1
+		if ("opacity" in styles):
+			opacity = float(styles["opacity"])
+		return self.has_stroke(styles) and stroke_opacity > 0 and opacity > 0 and strokeWidth > 0
+
+	def has_fill(self, styles):
+		return "fill" in styles and styles["fill"] != 'none' and styles["fill"] != ''
+		
+	def fill_visible(self, styles):
+		fill_opacity = 1
+		if ("fill-opacity" in styles):
+			fill_opacity = float(styles["fill-opacity"])
+		opacity = 1
+		if ("opacity" in styles):
+			opacity = float(styles["opacity"])
+		return self.has_fill(styles) and fill_opacity > 0 and opacity > 0
+		
 	def handle_image(self, imgNode, layer):
 		self.images[layer] = self.images[layer] + imgNode if layer in self.images else [imgNode]
 		
@@ -2799,7 +2835,7 @@ class Laserengraver(inkex.Effect):
 						print_("Found orientation points in '%s' layer: %s" % (layer.get(inkex.addNS('label','inkscape')), points))
 					else :
 						self.error(_("Warning! Found bad orientation points in '%s' layer. Resulting Gcode could be corrupt!") % layer.get(inkex.addNS('label','inkscape')), "bad_orientation_points_in_some_layers")
-				elif "gcodetools"  not in i.keys() :
+				elif "gcodetools"  not in i.keys() :		
 					# path
 					if i.tag == inkex.addNS('path','svg'):					
 						self.handle_node(i, layer)
