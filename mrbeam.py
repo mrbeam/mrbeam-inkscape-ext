@@ -2733,7 +2733,6 @@ class Laserengraver(inkex.Effect):
 ###		Get defs from svg
 ################################################################################
 	def get_defs(self) :
-		print("get_defs()")
 		self.defs = {}
 		def recursive(g) :
 			for i in g:
@@ -2742,11 +2741,30 @@ class Laserengraver(inkex.Effect):
 						self.defs[j.get("id")] = i
 				if i.tag ==inkex.addNS("g",'svg') :
 					recursive(i)
+		print(self.defs)
 		recursive(self.document.getroot())
 
+	def get_css(self) :
+		def recursive(g) :
+			for i in g:
+				if i.tag == inkex.addNS("defs","svg") : 
+					for j in i: 
+						if j.tag == inkex.addNS('style','svg'):	
+							self.parse_styles(j.text)
+						
+				if i.tag ==inkex.addNS("g",'svg') :
+					recursive(i)
+		recursive(self.document.getroot())
+		
+	def parse_styles(self, str):
+		# TODO use tinycss2 and store into self.css
+		pass
+		
 	def handle_node(self, node, layer):
-		styles = simplestyle.parseStyle(node.get("style"))
-		visible = (self.has_stroke(styles) and self.stroke_visible(styles)) or (self.has_fill(styles) and self.fill_visible(styles))
+		stroke = self.get_stroke(node)
+		fill = self.get_fill(node)
+		has_classes = node.get('class', None) is not None # TODO parse styles instead of assuming that the style applies visibility
+		visible = has_classes or stroke['visible'] or fill['visible']
 
 		if(visible):
 			simpletransform.fuseTransform(node)
@@ -2756,43 +2774,96 @@ class Laserengraver(inkex.Effect):
 
 			if self.options.fill_areas == True:
 
-				if fill_visible(styles):
-					#fillColor = styles["fill"]
+				if fill['visible']:
+					fillColor = fill['color']
 					ig = infill_generator.InfillGenerator( self.document, [node] )
 					fillings = ig.effect(self.options.fill_spacing, self.options.cross_fill, self.options.fill_angle)
 					self.filled_areas[layer] = self.filled_areas[layer] + fillings if layer in self.filled_areas else fillings
 
-	def has_stroke(self, styles):
-		return "stroke" in styles and styles["stroke"] != 'none' and styles["stroke"] != ''
-	
-	def stroke_visible(self, styles):
-		strokeWidth = 1
-		if("stroke-width" in styles):
-			strokeWidthStr = styles["stroke-width"]
+	def get_stroke(self, node):
+		stroke = {}
+		stroke['width'] = 1
+		stroke['width_unit'] = "px"
+		stroke['color'] = None
+		stroke['opacity'] = 1
+		stroke['visible'] = True
+		
+		#"stroke", "stroke-width", "stroke-opacity", "opacity"
+		styles = simplestyle.parseStyle(node.get("style"))
+		color = node.get('stroke', None)
+		if(color is None):
+			if("stroke" in styles):
+				color = styles["stroke"]
+		if(color != 'none' and color != ''):
+			stroke['color'] = color
+
+		width = node.get('stroke-width', '')
+		if(width is ''):
+			if("stroke-width" in styles):
+				width = styles["stroke-width"]
+		if(width != 'none' and width != ''):
 			try:
-				strokeWidth = float(re.sub(r'[^\d.]+', '', strokeWidthStr))				
+				strokeWidth = float(re.sub(r'[^\d.]+', '', width))				
+				stroke['width'] = strokeWidth
+				# todo: unit
 			except ValueError:
 				pass
-			
-		stroke_opacity = 1
-		if ("stroke-opacity" in styles):
-			stroke_opacity = float(styles["stroke-opacity"])
-		opacity = 1
-		if ("opacity" in styles):
-			opacity = float(styles["opacity"])
-		return self.has_stroke(styles) and stroke_opacity > 0 and opacity > 0 and strokeWidth > 0
+				
+		stroke_opacity = node.get('stroke-opacity', 1)
+		if(stroke_opacity is 1):
+			if ("stroke-opacity" in styles):
+				try:
+					stroke_opacity = float(styles["stroke-opacity"])
+				except ValueError:
+					pass
 
-	def has_fill(self, styles):
-		return "fill" in styles and styles["fill"] != 'none' and styles["fill"] != ''
+		opacity = node.get('opacity', 1)
+		if(opacity is 1):
+			if ("opacity" in styles):
+				try:
+					opacity = float(styles["opacity"])
+				except ValueError:
+					pass
+				
+		stroke['opacity'] = min(opacity, stroke_opacity)
+		stroke['visible'] = stroke['color'] is not None and stroke['opacity'] > 0 and stroke['width'] > 0
+		return stroke
+
+	def get_fill(self, node):
+		fill = {}
+		fill['color'] = None
+		fill['opacity'] = 1
+		fill['visible'] = True
 		
-	def fill_visible(self, styles):
-		fill_opacity = 1
-		if ("fill-opacity" in styles):
-			fill_opacity = float(styles["fill-opacity"])
-		opacity = 1
-		if ("opacity" in styles):
-			opacity = float(styles["opacity"])
-		return self.has_fill(styles) and fill_opacity > 0 and opacity > 0
+		#"fill", "fill-opacity", "opacity"
+		styles = simplestyle.parseStyle(node.get("style"))
+		color = node.get('fill', None)
+		if(color is None):
+			if("fill" in styles):
+				color = styles["fill"]
+		if(color != 'none' and color != ''):
+			fill['color'] = color
+				
+		fill_opacity = node.get('fill-opacity', 1)
+		if(fill_opacity is 1):
+			if ("fill-opacity" in styles):
+				try:
+					fill_opacity = float(styles["fill-opacity"])
+				except ValueError:
+					pass
+
+		opacity = node.get('opacity', 1)
+		if(opacity is 1):
+			if ("opacity" in styles):
+				try:
+					opacity = float(styles["opacity"])
+				except ValueError:
+					pass
+				
+		fill['opacity'] = min(opacity, fill_opacity)
+		fill['visible'] = fill['color'] is not None and fill['opacity'] > 0 
+		return fill
+		
 		
 	def handle_image(self, imgNode, layer):
 		self.images[layer] = self.images[layer] + imgNode if layer in self.images else [imgNode]
@@ -2815,12 +2886,14 @@ class Laserengraver(inkex.Effect):
 		self.transform_matrix_reverse = {}
 		self.Zauto_scale = {}
 		self.filled_areas = {}
+		self.css = {}
+		self.get_css()
 		
 		def recursive_search(g, layer, selected=False):
 			items = g.getchildren()
 			items.reverse()
-			if(len(items) > 0):
-				print("recursive search: ", len(items), g.get("id"))
+			#if(len(items) > 0):
+			#	print("recursive search: ", len(items), g.get("id"))
 			for i in items:
 				if selected:
 					self.selected[i.get("id")] = i
@@ -2834,7 +2907,7 @@ class Laserengraver(inkex.Effect):
 						print_("Found orientation points in '%s' layer: %s" % (layer.get(inkex.addNS('label','inkscape')), points))
 					else :
 						self.error(_("Warning! Found bad orientation points in '%s' layer. Resulting Gcode could be corrupt!") % layer.get(inkex.addNS('label','inkscape')), "bad_orientation_points_in_some_layers")
-				elif "gcodetools"  not in i.keys() :		
+				elif "gcodetools"  not in i.keys() :
 					# path
 					if i.tag == inkex.addNS('path','svg'):					
 						self.handle_node(i, layer)
