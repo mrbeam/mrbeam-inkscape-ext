@@ -2898,8 +2898,10 @@ class Laserengraver(inkex.Effect):
 				if selected:
 					self.selected[i.get("id")] = i
 				if i.tag == inkex.addNS("g",'svg') and i.get(inkex.addNS('groupmode','inkscape')) == 'layer':
-					self.layers += [i]
-					recursive_search(i,i)
+					styles = simplestyle.parseStyle(i.get("style", ''))
+					if "display" not in styles or styles["display"] != 'none':
+						self.layers += [i]
+						recursive_search(i,i)
 				elif i.get('gcodetools') == "Gcodetools orientation group" :
 					points = self.get_orientation_points(i)
 					if points != None :
