@@ -2902,6 +2902,8 @@ class Laserengraver(inkex.Effect):
 					if "display" not in styles or styles["display"] != 'none':
 						self.layers += [i]
 						recursive_search(i,i)
+					else:
+						print_("Skipping hidden layer: '%s'" % i.get('id', "?")) 	
 				elif i.get('gcodetools') == "Gcodetools orientation group" :
 					points = self.get_orientation_points(i)
 					if points != None :
