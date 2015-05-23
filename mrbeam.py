@@ -2764,8 +2764,8 @@ class Laserengraver(inkex.Effect):
 		stroke = self.get_stroke(node)
 		fill = self.get_fill(node)
 		has_classes = node.get('class', None) is not None # TODO parse styles instead of assuming that the style applies visibility
-		visible = has_classes or stroke['visible'] or fill['visible']
-
+		visible = has_classes or stroke['visible'] or fill['visible'] or (stroke['color'] == 'unset' and fill['color'] == 'unset')
+		
 		if(visible):
 			simpletransform.fuseTransform(node)
 			self.paths[layer] = self.paths[layer] + [node] if layer in self.paths else [node]
@@ -2784,7 +2784,7 @@ class Laserengraver(inkex.Effect):
 		stroke = {}
 		stroke['width'] = 1
 		stroke['width_unit'] = "px"
-		stroke['color'] = None
+		stroke['color'] = 'unset'
 		stroke['opacity'] = 1
 		stroke['visible'] = True
 		
@@ -2794,9 +2794,10 @@ class Laserengraver(inkex.Effect):
 		if(color is None):
 			if("stroke" in styles):
 				color = styles["stroke"]
-		if(color != 'none' and color != ''):
+		
+		if(color != None and color != 'none' and color != ''):
 			stroke['color'] = color
-
+		
 		width = node.get('stroke-width', '')
 		if(width is ''):
 			if("stroke-width" in styles):
@@ -2831,7 +2832,7 @@ class Laserengraver(inkex.Effect):
 
 	def get_fill(self, node):
 		fill = {}
-		fill['color'] = None
+		fill['color'] = 'unset'
 		fill['opacity'] = 1
 		fill['visible'] = True
 		
@@ -2841,7 +2842,7 @@ class Laserengraver(inkex.Effect):
 		if(color is None):
 			if("fill" in styles):
 				color = styles["fill"]
-		if(color != 'none' and color != ''):
+		if(color != None and color != 'none' and color != ''):
 			fill['color'] = color
 				
 		fill_opacity = node.get('fill-opacity', 1)
@@ -2859,7 +2860,7 @@ class Laserengraver(inkex.Effect):
 					opacity = float(styles["opacity"])
 				except ValueError:
 					pass
-				
+
 		fill['opacity'] = min(opacity, fill_opacity)
 		fill['visible'] = fill['color'] is not None and fill['opacity'] > 0 
 		return fill
@@ -2892,8 +2893,8 @@ class Laserengraver(inkex.Effect):
 		def recursive_search(g, layer, selected=False):
 			items = g.getchildren()
 			items.reverse()
-			#if(len(items) > 0):
-			#	print("recursive search: ", len(items), g.get("id"))
+			if(len(items) > 0):
+				print("recursive search: ", len(items), g.get("id"))
 			for i in items:
 				if selected:
 					self.selected[i.get("id")] = i
