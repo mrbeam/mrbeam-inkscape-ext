@@ -2780,6 +2780,7 @@ class Laserengraver(inkex.Effect):
 					fillings = ig.effect(self.options.fill_spacing, self.options.cross_fill, self.options.fill_angle)
 					self.filled_areas[layer] = self.filled_areas[layer] + fillings if layer in self.filled_areas else fillings
 
+	# TODO handle display:none
 	def get_stroke(self, node):
 		stroke = {}
 		stroke['width'] = 1
@@ -3262,14 +3263,21 @@ class Laserengraver(inkex.Effect):
 					h = float(imgNode.get("height"))
 					upperLeft = [x, y]
 					lowerRight = [x + w, y + h]
-					data = imgNode.get(inkex.addNS('href', 'xlink'))
 					mat = self.get_transforms(imgNode)
 					simpletransform.applyTransformToPoint(mat, upperLeft)
 					simpletransform.applyTransformToPoint(mat, lowerRight)
 					w = lowerRight[0] - upperLeft[0]
 					h = lowerRight[1] - upperLeft[1]
 					ip = ImageProcessor()
-					gcode = ip.base64_to_gcode(data, w, h, upperLeft[0], upperLeft[1])
+					data = imgNode.get('href')
+					if(data is None):
+						data = imgNode.get(inkex.addNS('href', 'xlink'))
+					if(data.startswith("data:")):
+						gcode = ip.base64_to_gcode(data, w, h, upperLeft[0], upperLeft[1])
+					elif(data.startswith("http://")):
+						gcode = ip.imgurl_to_gcode(data, w, h, upperLeft[0], upperLeft[1])
+					else:
+						print("Error: unable to parse img data", data)
 					gcode_images += gcode
 
 		self.export_gcode(gcode_images + "\n\n" + gcode_fillings + "\n\n" + gcode_outlines)
