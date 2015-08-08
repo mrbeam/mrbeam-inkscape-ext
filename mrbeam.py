@@ -2661,6 +2661,8 @@ class Laserengraver(inkex.Effect):
 			print_("\n Layer '%s' transformation matrixes:" % layer.get(inkex.addNS('label','inkscape')) )
 			print_(self.transform_matrix)
 			print_(self.transform_matrix_reverse)
+			#print("scalematrix", self.transform_matrix)
+			#print("revmatrix", self.transform_matrix_reverse)
 
 			###self.Zauto_scale[layer]  = math.sqrt( (self.transform_matrix[layer][0][0]**2 + self.transform_matrix[layer][1][1]**2)/2 )
 			### Zautoscale is absolete
@@ -3224,7 +3226,7 @@ class Laserengraver(inkex.Effect):
 					csp = cubicsuperpath.parsePath(path.get("d"))
 					csp = self.apply_transforms(path, csp)
 					if path.get("dxfpoint") == "1":
-						tmp_curve=self.transform_csp(csp, layer)
+						tmp_curve=self.transform_csp(csp, layer) # does the coordinate transformation from px to mm according to the orientation points
 						x=tmp_curve[0][0][0][0]
 						y=tmp_curve[0][0][0][1]
 						print_("got dxfpoint (scaled) at (%f,%f)" % (x,y))
@@ -3233,7 +3235,6 @@ class Laserengraver(inkex.Effect):
 						p += csp
 				dxfpoints=sort_dxfpoints(dxfpoints)
 				curve = self.parse_curve(p, layer)
-				#self.draw_curve(curve, layer, biarc_group)
 				intensity = self.options.laser_intensity
 				layerId = layer.get('id') or '?'
 				pathId = path.get('id') or '?'
@@ -3261,13 +3262,14 @@ class Laserengraver(inkex.Effect):
 					y = float(imgNode.get("y"))
 					w = float(imgNode.get("width"))
 					h = float(imgNode.get("height"))
-					upperLeft = [x, y]
-					lowerRight = [x + w, y + h]
-					mat = self.get_transforms(imgNode)
-					simpletransform.applyTransformToPoint(mat, upperLeft)
-					simpletransform.applyTransformToPoint(mat, lowerRight)
-					w = lowerRight[0] - upperLeft[0]
-					h = lowerRight[1] - upperLeft[1]
+					_upperLeft = [x, y]
+					_lowerRight = [x + w, y + h]
+					
+					upperLeft = self.transform(_upperLeft,layer, False)
+					lowerRight = self.transform(_lowerRight,layer, False)
+					
+					w = abs(lowerRight[0] - upperLeft[0])
+					h = abs(lowerRight[1] - upperLeft[1])
 					ip = ImageProcessor()
 					data = imgNode.get('href')
 					if(data is None):
@@ -3275,9 +3277,10 @@ class Laserengraver(inkex.Effect):
 					if(data.startswith("data:")):
 						gcode = ip.base64_to_gcode(data, w, h, upperLeft[0], upperLeft[1])
 					elif(data.startswith("http://")):
+						#print("url_to_gcode params:", data, w, h, upperLeft[0], upperLeft[1] )
 						gcode = ip.imgurl_to_gcode(data, w, h, upperLeft[0], upperLeft[1])
 					else:
-						print("Error: unable to parse img data", data)
+						print_("Error: unable to parse img data", data)
 					gcode_images += gcode
 
 		self.export_gcode(gcode_images + "\n\n" + gcode_fillings + "\n\n" + gcode_outlines)
