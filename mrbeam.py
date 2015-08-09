@@ -2295,7 +2295,11 @@ class Laserengraver(inkex.Effect):
 		self.OptionParser.add_option("",   "--img-intensity-black", type="int", default="1000", help="intensity for black pixels, default 1000", dest="intensity_black")
 		self.OptionParser.add_option("",   "--img-speed-white", type="int", default="500", help="speed for white pixels, default 500", dest="speed_white")
 		self.OptionParser.add_option("",   "--img-speed-black", type="int", default="30", help="speed for black pixels, default 30", dest="speed_black")
-		self.OptionParser.add_option("-t", "--pierce-time", type="int", default="500", help="time to rest after laser is switched on in milliseconds", dest="pierce_time")
+		self.OptionParser.add_option("-t", "--pierce-time", type="float", default="0", help="time to rest after laser is switched on in milliseconds", dest="pierce_time")
+		self.OptionParser.add_option("-c", "--contrast", type="float", help="contrast adjustment: 0.0 => gray, 1.0 => unchanged, >1.0 => intensified", default=1.0, dest="contrast")
+		self.OptionParser.add_option("", "--sharpening", type="float", help="image sharpening: 0.0 => blurred, 1.0 => unchanged, >1.0 => sharpened", default=1.0, dest="sharpening")
+		self.OptionParser.add_option("", "--dither", type="string", help="convert image to black and white pixels", default="false", dest="dither")
+		self.OptionParser.add_option("", "--beam-diameter", type="float", help="laser beam diameter, default 0.25mm", default=0.25, dest="beam_diameter")
 
 	def getDocumentWidth(self):
 		width = self.document.getroot().get('width')
@@ -2481,7 +2485,7 @@ class Laserengraver(inkex.Effect):
 				self.options.directory += "\\"
 			else :
 				self.options.directory += "/"
-		print_("Checking direcrory: '%s'"%self.options.directory)
+		print_("Checking directory: '%s'"%self.options.directory)
 		if (os.path.isdir(self.options.directory)):
 			pass
 		else: 
