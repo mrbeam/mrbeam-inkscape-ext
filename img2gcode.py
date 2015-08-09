@@ -47,18 +47,15 @@ class ImageProcessor():
 		self.sharpeningFactor = sharpening
 		self.dither = dither
 
-	def get_settings_as_comment(self, x,y,w,h,mode):
+	def get_settings_as_comment(self, x,y,w,h):
 		comment = "Image: {:.2f}x{:.2f} @ {:.2f},{:.2f}".format(w,h,x,y) + "\n"
 		comment += ";self.beam = {:.2f}".format(self.beam) + "\n"
 		comment += ";pierce_time = {:.2f}".format(self.pierce_time/1000.0) + "\n"
-		# constant feedrate, variable intensity
-		comment += ";fixed_feedrate = {:.2f}".format(self.fixed_feedrate) + "\n"
 		comment += ";intensity_black = {:.2f}".format(self.intensity_black) + "\n"
 		comment += ";intensity_white = {:.2f}".format(self.intensity_white) + "\n"
-		# constant intensity, variable feedrate
-		comment += ";fixed_intensity = {:.2f}".format(1000) + "\n"
 		comment += ";feedrate_white = {:.2f}".format(self.feedrate_white) + "\n"
 		comment += ";feedrate_black = {:.2f}".format(self.feedrate_black) + "\n"
+
 		comment += ";material = " + self.material + "\n"
 		comment += ";contrastFactor = {:.2f}".format(self.contrastFactor) + "\n"
 		comment += ";sharpeningFactor = {:.2f}".format(self.sharpeningFactor) + "\n"
@@ -112,19 +109,19 @@ class ImageProcessor():
 		if(self.dither == True):
 			img = img.convert('1') 
 		
-		img.save("/tmp/gcode_base.png")
+		#img.save("/tmp/gcode_base.png")
 		
 
 
 		# return pixel array
 		return img
 
-	def generate_gcode(self, img, x,y,w,h, mode = "feedrate"):
+	def generate_gcode(self, img, x,y,w,h):
 		pierce_intensity = 1000
 		direction_positive = True;
-		gcode = self.get_settings_as_comment(x,y,w,h,mode)
+		gcode = self.get_settings_as_comment(x,y,w,h)
 		gcode += 'G0 X'+self.twodigits(x)+' Y'+self.twodigits(y) + ' S0\n' # move to upper left
-		gcode += 'F ' + str(self.fixed_feedrate) + '\n' # set feedrate
+		gcode += 'F ' + str(self.feedrate_white) + '\n' # set an initial feedrate
 		gcode += 'M3S0\n' # enable laser
 		
 		(width, height) = img.size
@@ -150,33 +147,28 @@ class ImageProcessor():
 					if(i != pixelrange[0]): # don't move after new line
 							
 						xpos = x + self.beam * (i if (direction_positive) else (i+1)) # calculate position; backward lines need to be shifted by +1 beam diameter
-
-						# intensity modulation
-						if(mode == "intensity"):
-							if(lastBrightness >= 255): 
-								gcode += "G0 X" + self.twodigits(xpos) + " S0\n" # fast skipping whitespace 
-								if(self.pierce_time > 0):
-									gcode += "S"+str(pierce_intensity)+ "\n" + "G4 P"+str(self.pierce_time)+"\n" # Dwell for P ms
-
-							else:
-								intensity = self.get_intensity(lastBrightness)
-								gcode += "G1 X" + self.twodigits(xpos) + " S"+str(intensity)+ "\n" # move until next intensity
 							
-						# feedrate modulation
-						if(mode == "feedrate"):
-							if(lastBrightness >= 255): 
-								gcode += "G0 X" + self.twodigits(xpos) + " S0\n" # fast skipping whitespace 
-								if(self.pierce_time > 0):
-									mult = self.get_pierce_time_multiplier(i, row, pix, width, height, direction_positive) # 0.0 .. 1.0
-									pt = mult * self.pierce_time
-									if(pt > 0):
-										pt_str = "{0:.3f}".format(pt)
-										gcode += "S"+str(pierce_intensity)+ "\n" + "G4 P"+pt_str+"\n" # Dwell for P ms
+						# fast skipping whitespace
+						if(lastBrightness >= 255 and self.intensity_white == 0): 
+							gcode += "G0 X" + self.twodigits(xpos) + " S0\n"  
+							
+							# fixed piercetime
+							if(self.pierce_time > 0):
+								gcode += "S"+str(pierce_intensity)+ "\n" + "G4 P"+str(self.pierce_time)+"\n" # Dwell for P ms
+							
+							# dynamic piercetime
+							if(self.pierce_time > 0):
+								mult = self.get_pierce_time_multiplier(i, row, pix, width, height, direction_positive) # 0.0 .. 1.0
+								pt = mult * self.pierce_time
+								if(pt > 0):
+									pt_str = "{0:.3f}".format(pt)
+									gcode += "S"+str(pierce_intensity)+ "\n" + "G4 P"+pt_str+"\n" # Dwell for P ms
 
-							else:
-								feedrate = self.get_feedrate(lastBrightness)
-								gcode += "G1 X" + self.twodigits(xpos) + " F"+str(feedrate) + " S"+str(self.fixed_intensity)+ "\n" # move until next intensity
-						
+						else:
+							intensity = self.get_intensity(lastBrightness)
+							feedrate = self.get_feedrate(lastBrightness)
+							gcode += "G1 X" + self.twodigits(xpos) + " F"+str(feedrate) + " S"+str(intensity)+ "\n" # move until next intensity
+													
 				else:
 					pass # combine equal intensity values to one move
 					
@@ -184,13 +176,11 @@ class ImageProcessor():
 			
 			if(lastBrightness < 255): # finish non-white line
 				end_of_line = x + pixelrange[-1] * self.beam 
-				if(mode == "intensity"):
-					intensity = self.get_intensity(lastBrightness)
-					gcode += "G1 X" + self.twodigits(end_of_line) + " S"+str(intensity)+ "\n" # move until next intensity
-				if(mode == "feedrate"):
-					feedrate = self.get_feedrate(lastBrightness)
-					gcode += "G1 X" + self.twodigits(end_of_line) + " F"+str(feedrate) + " S"+str(self.fixed_intensity)+ "\n" # move until next intensity
+				intensity = self.get_intensity(lastBrightness)
+				feedrate = self.get_feedrate(lastBrightness)
+				gcode += "G1 X" + self.twodigits(end_of_line) + " F"+str(feedrate) + " S"+str(intensity)+ "\n" # move until next intensity
 
+			# flip direction after each line to go back and forth
 			direction_positive = not direction_positive
 			
 		return gcode
@@ -225,7 +215,7 @@ class ImageProcessor():
 		return gcode
 	
 	# x,y are the lowerLeft of the image
-	def img_to_gcode(self, path, w,h, x,y, mode):
+	def img_to_gcode(self, path, w,h, x,y):
 		img = Image.open(path)
 		pixArray = self.img_prepare(img, w, h)
 		gcode = self.generate_gcode(pixArray, x, y)
@@ -267,75 +257,7 @@ class ImageProcessor():
 		else: 
 			return 0
 		
-	def debug_image(self, gcode, pixelsize):
-		import string, sys, re
-		lines = string.split(gcode, '\n')
-		xmin = sys.maxint
-		xmax = -sys.maxint
-		ymin = sys.maxint
-		ymax = -sys.maxint
-		fmin = sys.maxint
-		fmax = -sys.maxint
-		regex = re.compile("((?P<letter>[GFSMXYZPIJK])\s*(?P<value>[0-9-.]+))")
-
-		x = 0
-		y = 0
-		s = 0
-		f = 0
-		g = 0
-		ltr = True
-		pix = []
-		for line in lines:
-			#matches = regex.findall(line)
-			for d in [matches.groupdict() for matches in regex.finditer(line)]:
-				
-				if(d['letter'] == 'G'):
-					g = d['value']
-				
-				if(d['letter'] == 'S'):
-					s = float(d['value'])
-
-				if(d['letter'] == 'F'):
-					f = float(d['value'])
-					fmin = min(f, fmin)
-					fmax = max(f, fmax)
-
-				if(d['letter'] == 'X'):
-					tmp_x = float(d['value'])
-					ltr = tmp_x > x
-					x = tmp_x
-					xmin = min(x, xmin)
-					xmax = max(x, xmax)
-					
-				if(d['letter'] == 'Y'):
-					y = float(d['value'])
-					ymin = min(y, ymin)
-					ymax = max(y, ymax)
-			
-			pix.append({'g':g, 'x':x, 'y':y, 's':s, 'f':f, 'ltr': ltr})
-
-		h = int((ymax - ymin) * 1/pixelsize) + 1
-		w = int((xmax - xmin) * 1/pixelsize) + 2
-		f_factor = 1/fmax
 		
-		print("Image: {:.2f}x{:.2f} @ {:.2f},{:.2f}".format(w,h,xmin,ymin) )
-
-		
-		img = Image.new("L", (w*2,h), "white")
-		pixarray = img.load()
-		for line in pix:
-			#print line
-			if(line['g'] == '1'):
-				x = (line['x']-xmin) * 1/pixelsize
-				if(line['ltr']):
-					x = x-1
-				y = (ymax - line['y']-ymin) * 1/pixelsize
-				s = line['s'] / 4
-				f = (1 - line['f'] * f_factor) * 255
-				pixarray[x, y] = s
-				pixarray[x+w, y] = f
-			
-		img.save("/tmp/gcode2img.png")			
 
 
 # debug string
@@ -348,13 +270,13 @@ if __name__ == "__main__":
 	opts.add_option("-y",   "--y-position", type="float", default="0", help="y position of the image on the working area", dest="y")
 	opts.add_option("-w",   "--width", type="float", default=100, help="width of the image in mm", dest="width")
 	opts.add_option("",   "--height", type="float", default=-1, help="height of the image in mm. If omitted aspect ratio will be preserved.", dest="height")
-	opts.add_option("-d", "--beam_diameter", type="float", help="laser beam diameter, default 0.25mm", default=0.25, dest="beam_diameter")
+	opts.add_option("", "--beam-diameter", type="float", help="laser beam diameter, default 0.25mm", default=0.25, dest="beam_diameter")
 	opts.add_option("-s", "--speed", type="float", help="engraving speed, default 1000mm/min", default=1000, dest="feedrate")
 	opts.add_option("",   "--img-intensity-white", type="int", default="0", help="intensity for white pixels, default 0", dest="intensity_white")
 	opts.add_option("",   "--img-intensity-black", type="int", default="1000", help="intensity for black pixels, default 1000", dest="intensity_black")
 	opts.add_option("",   "--img-speed-white", type="int", default="500", help="speed for white pixels, default 500", dest="speed_white")
 	opts.add_option("",   "--img-speed-black", type="int", default="30", help="speed for black pixels, default 30", dest="speed_black")
-	opts.add_option("-t", "--pierce-time", type="int", default="500", help="time to rest after laser is switched on in milliseconds", dest="pierce_time")
+	opts.add_option("-t", "--pierce-time", type="float", default="0", help="time to rest after laser is switched on in milliseconds", dest="pierce_time")
 	opts.add_option("-c", "--contrast", type="float", help="contrast adjustment: 0.0 => gray, 1.0 => unchanged, >1.0 => intensified", default=1.0, dest="contrast")
 	opts.add_option("", "--sharpening", type="float", help="image sharpening: 0.0 => blurred, 1.0 => unchanged, >1.0 => sharpened", default=1.0, dest="sharpening")
 	opts.add_option("", "--dither", type="string", help="convert image to black and white pixels", default="false", dest="dither")
@@ -390,5 +312,4 @@ M02
 '''
 
 	#print header + gcode + footer
-
-	ip.debug_image( gcode, options.beam_diameter)
+	
