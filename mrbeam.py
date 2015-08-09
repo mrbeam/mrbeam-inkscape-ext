@@ -1364,12 +1364,13 @@ def cubic_solver(a,b,c,d):
 ################################################################################
 
 def print_(*arg):
-	f = open(options.log_filename,"a")
-	for s in arg :
-		s = str(unicode(s).encode('unicode_escape'))+" "
-		f.write( s )
-	f.write("\n")
-	f.close()
+	if(options.log_filename != ''):
+		f = open(options.log_filename,"a")
+		for s in arg :
+			s = str(unicode(s).encode('unicode_escape'))+" "
+			f.write( s )
+		f.write("\n")
+		f.close()
 
 
 ################################################################################
@@ -2278,14 +2279,14 @@ class Laserengraver(inkex.Effect):
 		self.OptionParser.add_option("",   "--engraving-laser-speed",		action="store", type="int",		 dest="engraving_laser_speed", default="30",					help="Speed of laser during engraving")
 		self.OptionParser.add_option("",   "--laser-intensity",		action="store", type="int",		 dest="laser_intensity", default="1000",					help="Laser intensity during engraving")
 		self.OptionParser.add_option("",   "--suppress-all-messages",		 action="store", type="inkbool",	 dest="suppress_all_messages", default=True,				help="Check this to hide any messages during g-code generation")
-		self.OptionParser.add_option("",   "--create-log",					action="store", type="inkbool",	 dest="log_create_log", default=True,				help="Create log files")
+		self.OptionParser.add_option("",   "--create-log",					action="store", type="inkbool",	 dest="log_create_log", default=False,				help="")
 		self.OptionParser.add_option("",   "--log-filename",				  action="store", type="string",	  dest="log_filename", default='',					help="Create log files")
 		self.OptionParser.add_option("",   "--engraving-draw-calculation-paths",action="store", type="inkbool",	dest="engraving_draw_calculation_paths", default=False,		help="Draw additional graphics to debug engraving path")
 		self.OptionParser.add_option("",   "--unit",						action="store", type="string",		 dest="unit", default="G21 (All units in mm)",		help="Units")
 		self.OptionParser.add_option("",   "--dpi",						action="store", type="float",		 dest="svgDPI", default="90",		help="dpi of the SVG file. Use 90 for Inkscape and 72 for Illustrator")
 		self.OptionParser.add_option("",   "--active-tab",					action="store", type="string",		 dest="active_tab", default='"Laser"',						help="Defines which tab is active")
 		self.OptionParser.add_option("",   "--biarc-max-split-depth",		action="store", type="int",		 dest="biarc_max_split_depth", default="4",			help="Defines maximum depth of splitting while approximating using biarcs.")				
-		self.OptionParser.add_option("",   "--fill-areas",		action="store", type="inkbool",		 dest="fill_areas", default=True,			help="Fill filled paths line by line.")				
+		self.OptionParser.add_option("",   "--fill-areas",		action="store", type="inkbool",		 dest="fill_areas", default=False,			help="Fill filled paths line by line.")				
 		self.OptionParser.add_option("",   "--fill-spacing",		action="store", type="float",		 dest="fill_spacing", default=0.25,			help="Distance between area filling lines. Increase for faster engraving, decrease for better quality. Minimum: laser beam diameter")				
 		self.OptionParser.add_option("",   "--cross-fill",		action="store", type="inkbool",		 dest="cross_fill", default=False,			help="Fill areas with grid ?")				
 		self.OptionParser.add_option("",   "--fill-angle",		action="store", type="float",		 dest="fill_angle", default=0.0,			help="Angle of the fill pattern. 0.0 means parallel to x-axis.")				
@@ -2374,6 +2375,8 @@ class Laserengraver(inkex.Effect):
 					dist = max(   ( -( ( end[0]-start[0])**2+(end[1]-start[1])**2 ) ,i)	,   dist )
 				keys += [k[dist[1]]]
 				del k[dist[1]]
+				
+			#keys = range(1,len(p)) # debug unsorted.
 			for k in keys:
 				subpath = p[k]
 				c += [ [	[subpath[0][1][0],subpath[0][1][1]]   , 'move', 0, 0] ]
@@ -2384,7 +2387,8 @@ class Laserengraver(inkex.Effect):
 #					l1 = biarc(sp1,sp2,0,0) if w==None else biarc(sp1,sp2,-f(w[k][i-1]),-f(w[k][i]))
 #					print_((-f(w[k][i-1]),-f(w[k][i]), [i1[5] for i1 in l1]) )
 				c += [ [ [subpath[-1][1][0],subpath[-1][1][1]]  ,'end',0,0] ]
-				print_("Curve: " + str(c))
+
+			#print_("Curve: " + str(c))
 			return c
 
 
@@ -2533,8 +2537,7 @@ class Laserengraver(inkex.Effect):
 			r = ''	
 			for i in range(6):
 				if c[i]!=None:
-					r += s[i] + ("%f" % (round(c[i],4))) # truncating leads to invalid GCODE ID33
-					#r += s[i] + "{0:.3f}".format(c[i]) # three digit limit, no 0 stripping as this would lead to "0." for 0.000
+					r += s[i] + ("%.4f" % (round(c[i],4))) # truncating leads to invalid GCODE ID33
 			return r
 
 		def calculate_angle(a, current_a):
@@ -2665,6 +2668,8 @@ class Laserengraver(inkex.Effect):
 			print_("\n Layer '%s' transformation matrixes:" % layer.get(inkex.addNS('label','inkscape')) )
 			print_(self.transform_matrix)
 			print_(self.transform_matrix_reverse)
+			#print("scalematrix", self.transform_matrix)
+			#print("revmatrix", self.transform_matrix_reverse)
 
 			###self.Zauto_scale[layer]  = math.sqrt( (self.transform_matrix[layer][0][0]**2 + self.transform_matrix[layer][1][1]**2)/2 )
 			### Zautoscale is absolete
@@ -2737,7 +2742,6 @@ class Laserengraver(inkex.Effect):
 ###		Get defs from svg
 ################################################################################
 	def get_defs(self) :
-		print("get_defs()")
 		self.defs = {}
 		def recursive(g) :
 			for i in g:
@@ -2746,22 +2750,132 @@ class Laserengraver(inkex.Effect):
 						self.defs[j.get("id")] = i
 				if i.tag ==inkex.addNS("g",'svg') :
 					recursive(i)
+		print(self.defs)
 		recursive(self.document.getroot())
 
-	def handle_node(self, node, layer):
-		simpletransform.fuseTransform(node)
-		self.paths[layer] = self.paths[layer] + [node] if layer in self.paths else [node]
-		if node.get("id") in self.selected :
-			self.selected_paths[layer] = self.selected_paths[layer] + [node] if layer in self.selected_paths else [node]  
+	def get_css(self) :
+		def recursive(g) :
+			for i in g:
+				if i.tag == inkex.addNS("defs","svg") : 
+					for j in i: 
+						if j.tag == inkex.addNS('style','svg'):	
+							self.parse_styles(j.text)
+						
+				if i.tag ==inkex.addNS("g",'svg') :
+					recursive(i)
+		recursive(self.document.getroot())
 		
-		if self.options.fill_areas == True:
-			styles = simplestyle.parseStyle(node.get("style"))
-			if "fill" in styles and styles["fill"] != "none" and styles["fill"] != '' :
-				#fillColor = styles["fill"]
-				ig = infill_generator.InfillGenerator( self.document, [node] )
-				fillings = ig.effect(self.options.fill_spacing, self.options.cross_fill, self.options.fill_angle)
-				self.filled_areas[layer] = self.filled_areas[layer] + fillings if layer in self.filled_areas else fillings
+	def parse_styles(self, str):
+		# TODO use tinycss2 and store into self.css
+		pass
+		
+	def handle_node(self, node, layer):
+		stroke = self.get_stroke(node)
+		fill = self.get_fill(node)
+		has_classes = node.get('class', None) is not None # TODO parse styles instead of assuming that the style applies visibility
+		visible = has_classes or stroke['visible'] or fill['visible'] or (stroke['color'] == 'unset' and fill['color'] == 'unset')
+		
+		if(visible):
+			simpletransform.fuseTransform(node)
+			self.paths[layer] = self.paths[layer] + [node] if layer in self.paths else [node]
+			if node.get("id") in self.selected :
+				self.selected_paths[layer] = self.selected_paths[layer] + [node] if layer in self.selected_paths else [node]  
 
+			if self.options.fill_areas == True:
+
+				if fill['visible']:
+					fillColor = fill['color']
+					ig = infill_generator.InfillGenerator( self.document, [node] )
+					fillings = ig.effect(self.options.fill_spacing, self.options.cross_fill, self.options.fill_angle)
+					self.filled_areas[layer] = self.filled_areas[layer] + fillings if layer in self.filled_areas else fillings
+
+	# TODO handle display:none
+	def get_stroke(self, node):
+		stroke = {}
+		stroke['width'] = 1
+		stroke['width_unit'] = "px"
+		stroke['color'] = 'unset'
+		stroke['opacity'] = 1
+		stroke['visible'] = True
+		
+		#"stroke", "stroke-width", "stroke-opacity", "opacity"
+		styles = simplestyle.parseStyle(node.get("style"))
+		color = node.get('stroke', None)
+		if(color is None):
+			if("stroke" in styles):
+				color = styles["stroke"]
+		
+		if(color != None and color != 'none' and color != ''):
+			stroke['color'] = color
+		
+		width = node.get('stroke-width', '')
+		if(width is ''):
+			if("stroke-width" in styles):
+				width = styles["stroke-width"]
+		if(width != 'none' and width != ''):
+			try:
+				strokeWidth = float(re.sub(r'[^\d.]+', '', width))				
+				stroke['width'] = strokeWidth
+				# todo: unit
+			except ValueError:
+				pass
+				
+		stroke_opacity = node.get('stroke-opacity', 1)
+		if(stroke_opacity is 1):
+			if ("stroke-opacity" in styles):
+				try:
+					stroke_opacity = float(styles["stroke-opacity"])
+				except ValueError:
+					pass
+
+		opacity = node.get('opacity', 1)
+		if(opacity is 1):
+			if ("opacity" in styles):
+				try:
+					opacity = float(styles["opacity"])
+				except ValueError:
+					pass
+				
+		stroke['opacity'] = min(opacity, stroke_opacity)
+		stroke['visible'] = stroke['color'] is not None and stroke['opacity'] > 0 and stroke['width'] > 0
+		return stroke
+
+	def get_fill(self, node):
+		fill = {}
+		fill['color'] = 'unset'
+		fill['opacity'] = 1
+		fill['visible'] = True
+		
+		#"fill", "fill-opacity", "opacity"
+		styles = simplestyle.parseStyle(node.get("style"))
+		color = node.get('fill', None)
+		if(color is None):
+			if("fill" in styles):
+				color = styles["fill"]
+		if(color != None and color != 'none' and color != ''):
+			fill['color'] = color
+				
+		fill_opacity = node.get('fill-opacity', 1)
+		if(fill_opacity is 1):
+			if ("fill-opacity" in styles):
+				try:
+					fill_opacity = float(styles["fill-opacity"])
+				except ValueError:
+					pass
+
+		opacity = node.get('opacity', 1)
+		if(opacity is 1):
+			if ("opacity" in styles):
+				try:
+					opacity = float(styles["opacity"])
+				except ValueError:
+					pass
+
+		fill['opacity'] = min(opacity, fill_opacity)
+		fill['visible'] = fill['color'] is not None and fill['opacity'] > 0 
+		return fill
+		
+		
 	def handle_image(self, imgNode, layer):
 		self.images[layer] = self.images[layer] + imgNode if layer in self.images else [imgNode]
 		
@@ -2783,16 +2897,24 @@ class Laserengraver(inkex.Effect):
 		self.transform_matrix_reverse = {}
 		self.Zauto_scale = {}
 		self.filled_areas = {}
+		self.css = {}
+		self.get_css()
 		
 		def recursive_search(g, layer, selected=False):
 			items = g.getchildren()
 			items.reverse()
+			if(len(items) > 0):
+				print("recursive search: ", len(items), g.get("id"))
 			for i in items:
 				if selected:
 					self.selected[i.get("id")] = i
 				if i.tag == inkex.addNS("g",'svg') and i.get(inkex.addNS('groupmode','inkscape')) == 'layer':
-					self.layers += [i]
-					recursive_search(i,i)
+					styles = simplestyle.parseStyle(i.get("style", ''))
+					if "display" not in styles or styles["display"] != 'none':
+						self.layers += [i]
+						recursive_search(i,i)
+					else:
+						print_("Skipping hidden layer: '%s'" % i.get('id', "?")) 	
 				elif i.get('gcodetools') == "Gcodetools orientation group" :
 					points = self.get_orientation_points(i)
 					if points != None :
@@ -2938,9 +3060,9 @@ class Laserengraver(inkex.Effect):
 						print_("ignoring not supported tag ", i.tag, "\n", inkex.etree.tostring(i))
 					
 		recursive_search(self.document.getroot(),self.document.getroot())
-		print_("self.layers", len(self.layers))
-		print_("self.selected_paths", len(self.selected_paths))
-		print_("self.paths", len(self.paths))
+		print("self.layers", len(self.layers))
+		print("self.selected_paths", len(self.selected_paths))
+		print("self.paths", len(self.paths))
 
 
 	def get_orientation_points(self,g):
@@ -3094,22 +3216,24 @@ class Laserengraver(inkex.Effect):
 		gcode_images = ""
 
 		biarc_group = inkex.etree.SubElement( self.selected_paths.keys()[0] if len(self.selected_paths.keys())>0 else self.layers[0], inkex.addNS('g','svg') )
-		print_(("self.layers=",self.layers))
-		print_(("paths=",paths))
+		#print_(("self.layers=",self.layers))
+		#print_(("paths=",paths))
+		
+		#print("processing ", len(self.layers), " layers")
 		for layer in self.layers :
 			if layer in paths :
-				print_(("layer",layer))
+				#print(("layer",layer.get('id')))
 				p = []	
 				dxfpoints = []
 				for path in paths[layer] :
-					print_(str(layer))
+					#print("path", layer.get('id'), path.get('id'))
 					if "d" not in path.keys() : 
 						self.error(_("Warning: One or more paths dont have 'd' parameter, try to Ungroup (Ctrl+Shift+G) and Object to Path (Ctrl+Shift+C)!"),"selection_contains_objects_that_are_not_paths")
 						continue					
 					csp = cubicsuperpath.parsePath(path.get("d"))
 					csp = self.apply_transforms(path, csp)
 					if path.get("dxfpoint") == "1":
-						tmp_curve=self.transform_csp(csp, layer)
+						tmp_curve=self.transform_csp(csp, layer) # does the coordinate transformation from px to mm according to the orientation points
 						x=tmp_curve[0][0][0][0]
 						y=tmp_curve[0][0][0][1]
 						print_("got dxfpoint (scaled) at (%f,%f)" % (x,y))
@@ -3118,7 +3242,6 @@ class Laserengraver(inkex.Effect):
 						p += csp
 				dxfpoints=sort_dxfpoints(dxfpoints)
 				curve = self.parse_curve(p, layer)
-				#self.draw_curve(curve, layer, biarc_group)
 				intensity = self.options.laser_intensity
 				layerId = layer.get('id') or '?'
 				pathId = path.get('id') or '?'
@@ -3147,36 +3270,55 @@ class Laserengraver(inkex.Effect):
 					y = float(imgNode.get("y"))
 					w = float(imgNode.get("width"))
 					h = float(imgNode.get("height"))
-					upperLeft = [x, y]
-					lowerRight = [x + w, y + h]
-					# apply svg transforms
-					mat = self.get_transforms(imgNode)
-					docH = self.getDocumentHeight()
-					invertYMat = [[1,0,0],[0,-1,float(docH)]]
-					_mat = simpletransform.composeTransform(mat, invertYMat)
-					simpletransform.applyTransformToPoint(_mat, upperLeft)
-					simpletransform.applyTransformToPoint(_mat, lowerRight)
+# manual scale matrix calculation
+#					upperLeft = [x, y]
+#					lowerRight = [x + w, y + h]
+#					# apply svg transforms
+#					mat = self.get_transforms(imgNode)
+#					docH = self.getDocumentHeight()
+#					invertYMat = [[1,0,0],[0,-1,float(docH)]]
+#					_mat = simpletransform.composeTransform(mat, invertYMat)
+#					simpletransform.applyTransformToPoint(_mat, upperLeft)
+#					simpletransform.applyTransformToPoint(_mat, lowerRight)
+#					
+#					# to MM / inch conversion
+#					if self.options.unit == "G21 (All units in mm)" : 
+#						ptPerUnit = self.options.svgDPI / 25.4 # 3.5433070660 @ 90dpi
+#					elif self.options.unit == "G20 (All units in inches)" :
+#						ptPerUnit = self.options.svgDPI
+#						
+#					unitMat = [[1/ptPerUnit,0,0],[0,1/ptPerUnit,0]] # unit conversion matrix 
+#					simpletransform.applyTransformToPoint(unitMat, upperLeft)
+#					simpletransform.applyTransformToPoint(unitMat, lowerRight)
+#					wMM = abs(lowerRight[0] - upperLeft[0])
+#					hMM = abs(lowerRight[1] - upperLeft[1])
+#					
+
+
+### original style with orientation points :( =======
+					_upperLeft = [x, y]
+					_lowerRight = [x + w, y + h]
 					
-					# to MM / inch conversion
-					if self.options.unit == "G21 (All units in mm)" : 
-						ptPerUnit = self.options.svgDPI / 25.4 # 3.5433070660 @ 90dpi
-					elif self.options.unit == "G20 (All units in inches)" :
-						ptPerUnit = self.options.svgDPI
-						
-					unitMat = [[1/ptPerUnit,0,0],[0,1/ptPerUnit,0]] # unit conversion matrix 
-					simpletransform.applyTransformToPoint(unitMat, upperLeft)
-					simpletransform.applyTransformToPoint(unitMat, lowerRight)
-					wMM = lowerRight[0] - upperLeft[0]
-					hMM = abs(lowerRight[1] - upperLeft[1])
+					# mm conversion
+					upperLeft = self.transform(_upperLeft,layer, False)
+					lowerRight = self.transform(_lowerRight,layer, False)
 					
+					w = abs(lowerRight[0] - upperLeft[0])
+					h = abs(lowerRight[1] - upperLeft[1])
+										
 					ip = ImageProcessor(self.options.speed_black, contrast = 1.0, sharpening = 1.0, beam_diameter = 0.25, intensity_black = self.options.intensity_black, intensity_white = self.options.intensity_white, speed_black = self.options.speed_black, speed_white = self.options.speed_white, pierce_time = self.options.pierce_time, material = "default")
-					data = imgNode.get(inkex.addNS('href', 'xlink'))
+					data = imgNode.get('href')
+					if(data is None):
+						data = imgNode.get(inkex.addNS('href', 'xlink'))
+						
 					gcode = ''
-					if(data is not None):
-						gcode = ip.base64_to_gcode(data, wMM, hMM, upperLeft[0], lowerRight[1])
+					if(data.startswith("data:")):
+						gcode = ip.base64_to_gcode(data, w, h, upperLeft[0], upperLeft[1])
+					elif(data.startswith("http://")):
+						#print("url_to_gcode params:", data, w, h, upperLeft[0], upperLeft[1] )
+						gcode = ip.imgurl_to_gcode(data, w, h, upperLeft[0], upperLeft[1])
 					else:
-						url = imgNode.get("href")
-						gcode = ip.imgurl_to_gcode(url, wMM,hMM, upperLeft[0], lowerRight[1])
+						print_("Error: unable to parse img data", data)
 
 					gcode_images += gcode
 
@@ -3268,7 +3410,7 @@ class Laserengraver(inkex.Effect):
 		options.doc_root = self.document.getroot()
 		# define print_ function 
 		global print_
-		if self.options.log_create_log :
+		if self.options.log_filename != '' :
 			try :
 				if os.path.isfile(self.options.log_filename) : os.remove(self.options.log_filename)
 				f = open(self.options.log_filename,"a")

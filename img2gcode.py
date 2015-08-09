@@ -195,9 +195,10 @@ class ImageProcessor():
 			
 		return gcode
 
-		
-	# x,y are the lowerLeft of the image
-	def base64_to_gcode(self, base64str, w,h, x,y, mode):
+	def base64_to_gcode(self, base64str, w,h, x,y):
+		if(base64str is None):
+			print("ERROR: image is not base64 encoded")
+			return ""; 
 		
 		# remove "data:image/png;base64," and add a "\n" in front to get proper base64 encoding
 		if(base64str.startswith("data:")):
@@ -212,21 +213,20 @@ class ImageProcessor():
 		img = Image.open(image_string)
 
 		pixArray = self.img_prepare(img, w, h)
-		gcode = self.generate_gcode(pixArray, x, y, w, h, mode)
+		gcode = self.generate_gcode(pixArray, x, y)
+		return gcode
+	
+	def imgurl_to_gcode(self, url, w,h, x,y):
+		import urllib, cStringIO
+		file = cStringIO.StringIO(urllib.urlopen(url).read())
+		img = Image.open(file)
+		pixArray = self.img_prepare(img, w, h)
+		gcode = self.generate_gcode(pixArray, x, y, w, h)
 		return gcode
 	
 	# x,y are the lowerLeft of the image
 	def img_to_gcode(self, path, w,h, x,y, mode):
 		img = Image.open(path)
-		pixArray = self.img_prepare(img, w, h)
-		gcode = self.generate_gcode(pixArray, x, y, w, h, mode)
-		return gcode
-	
-	# x,y are the lowerLeft of the image
-	def imgurl_to_gcode(self, url, w,h, x,y):
-		from StringIO import StringIO
-		import urllib
-		img = Image.open(StringIO(urllib.urlopen(url).read()))
 		pixArray = self.img_prepare(img, w, h)
 		gcode = self.generate_gcode(pixArray, x, y)
 		return gcode
