@@ -8,7 +8,6 @@ __date__ = "$Aug 9, 2015 9:42:03 AM$"
 import optparse
 import os.path
 from PIL import Image
-from PIL import ImageEnhance
 
 def debug_image(gcode, pixelsize):
 	import string, sys, re
@@ -73,11 +72,13 @@ def debug_image(gcode, pixelsize):
 		if(line['g'] == '1' or line['g'] == '0'):
 			x = int((line['x']-xmin) * 1/pixelsize)
 			if(line['ltr']):
-				x = x-1
-			y = h - (line['y'] - ymin) * 1/pixelsize
+				#x = x-1
+				pass
+			y = h-1 - (line['y'] - ymin) * 1/pixelsize
+			print(y, line)
 			if(line['g'] == '1'):
 				s = int((1-line['s'] / 1000.0) * 255) # intensity (0-1000) to luminance conversion
-				f = (1 - line['f'] * f_factor) * 255
+				f = (line['f'] * f_factor) * 255
 				if(last_px != None):
 					_min = min(last_px[0], x)
 					_max = max(last_px[0], x)

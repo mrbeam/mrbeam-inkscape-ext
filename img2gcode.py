@@ -25,6 +25,7 @@ from PIL import Image
 from PIL import ImageEnhance
 import base64
 import cStringIO
+import os.path
 
 class ImageProcessor():
 
@@ -48,7 +49,7 @@ class ImageProcessor():
 		self.dither = dither
 
 	def get_settings_as_comment(self, x,y,w,h):
-		comment = "Image: {:.2f}x{:.2f} @ {:.2f},{:.2f}".format(w,h,x,y) + "\n"
+		comment = ";Image: {:.2f}x{:.2f} @ {:.2f},{:.2f}".format(w,h,x,y) + "\n"
 		comment += ";self.beam = {:.2f}".format(self.beam) + "\n"
 		comment += ";pierce_time = {:.2f}".format(self.pierce_time/1000.0) + "\n"
 		comment += ";intensity_black = {:.2f}".format(self.intensity_black) + "\n"
@@ -172,13 +173,15 @@ class ImageProcessor():
 				else:
 					pass # combine equal intensity values to one move
 					
-				lastBrightness = brightness
 			
-			if(lastBrightness < 255): # finish non-white line
+				
+				lastBrightness = brightness
+
+			if(brightness < 255 or self.intensity_white > 0): # finish non-white line
 				end_of_line = x + pixelrange[-1] * self.beam 
-				intensity = self.get_intensity(lastBrightness)
-				feedrate = self.get_feedrate(lastBrightness)
-				gcode += "G1 X" + self.twodigits(end_of_line) + " F"+str(feedrate) + " S"+str(intensity)+ "\n" # move until next intensity
+				intensity = self.get_intensity(brightness)
+				feedrate = self.get_feedrate(brightness)
+				gcode += "G1 X" + self.twodigits(end_of_line) + " F"+str(feedrate) + " S"+str(intensity)+ "\n" # finish line
 
 			# flip direction after each line to go back and forth
 			direction_positive = not direction_positive
@@ -218,7 +221,7 @@ class ImageProcessor():
 	def img_to_gcode(self, path, w,h, x,y):
 		img = Image.open(path)
 		pixArray = self.img_prepare(img, w, h)
-		gcode = self.generate_gcode(pixArray, x, y)
+		gcode = self.generate_gcode(pixArray, x, y, w, h)
 		return gcode
 	
 	def twodigits(self, fl):
@@ -290,7 +293,7 @@ if __name__ == "__main__":
 	boolDither, options.pierce_time, material = "default")
 	mode = "intensity"
 	path = args[0]
-	gcode = ip.img_to_gcode(path, options.width, options.height, options.x, options.y, mode)
+	gcode = ip.img_to_gcode(path, options.width, options.height, options.x, options.y)
 	#gcode = ip.base64_to_gcode(base64img, options.width, options.height, options.x, options.y)
 	
 	header = ""
@@ -311,5 +314,14 @@ M09
 M02
 '''
 
-	#print header + gcode + footer
-	
+	if(len(args) == 2):
+		gcodefile = args[1]
+	else:
+		filename, _ = os.path.splitext(path)
+		gcodefile = filename + ".gco"
+		
+	with open (gcodefile, "w") as f:
+		f.write(gcode)
+
+	print("gcode written to " + gcodefile) 
+		
