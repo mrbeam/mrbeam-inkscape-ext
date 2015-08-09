@@ -3274,6 +3274,7 @@ class Laserengraver(inkex.Effect):
 					y = float(imgNode.get("y"))
 					w = float(imgNode.get("width"))
 					h = float(imgNode.get("height"))
+
 # manual scale matrix calculation
 #					upperLeft = [x, y]
 #					lowerRight = [x + w, y + h]
@@ -3299,10 +3300,15 @@ class Laserengraver(inkex.Effect):
 #					
 
 
-### original style with orientation points :( =======
 					_upperLeft = [x, y]
 					_lowerRight = [x + w, y + h]
 					
+					# apply svg transforms
+					_mat = self.get_transforms(imgNode)
+					simpletransform.applyTransformToPoint(_mat, _upperLeft)
+					simpletransform.applyTransformToPoint(_mat, _lowerRight)
+					
+					### original style with orientation points :( ... TODO
 					# mm conversion
 					upperLeft = self.transform(_upperLeft,layer, False)
 					lowerRight = self.transform(_lowerRight,layer, False)
@@ -3319,7 +3325,6 @@ class Laserengraver(inkex.Effect):
 					if(data.startswith("data:")):
 						gcode = ip.base64_to_gcode(data, w, h, upperLeft[0], upperLeft[1])
 					elif(data.startswith("http://")):
-						#print("url_to_gcode params:", data, w, h, upperLeft[0], upperLeft[1] )
 						gcode = ip.imgurl_to_gcode(data, w, h, upperLeft[0], upperLeft[1])
 					else:
 						print_("Error: unable to parse img data", data)

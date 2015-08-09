@@ -206,7 +206,7 @@ class ImageProcessor():
 		img = Image.open(image_string)
 
 		pixArray = self.img_prepare(img, w, h)
-		gcode = self.generate_gcode(pixArray, x, y)
+		gcode = self.generate_gcode(pixArray, x, y, w, h)
 		return gcode
 	
 	def imgurl_to_gcode(self, url, w,h, x,y):
