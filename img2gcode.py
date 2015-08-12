@@ -29,18 +29,14 @@ import os.path
 
 class ImageProcessor():
 
-	def __init__( self , feedrate = 500, contrast = 1.0, sharpening = 1.0, beam_diameter = 0.25, 
-	intensity_black = 1000, intensity_white = 0, speed_black = 30, speed_white = 500, 
-	dither = True, pierce_time = 500, material = "default"):
+	def __init__( self, contrast = 1.0, sharpening = 1.0, beam_diameter = 0.25, 
+	intensity_black = 500, intensity_white = 0, speed_black = 500, speed_white = 3000, 
+	dither = False, pierce_time = 0, material = "default"):
 		
 		self.beam = beam_diameter
 		self.pierce_time = pierce_time/1000.0
-		# constant feedrate, variable intensity
-		self.fixed_feedrate = feedrate
 		self.intensity_black = intensity_black
 		self.intensity_white = intensity_white
-		# constant intensity, variable feedrate
-		self.fixed_intensity = 1000
 		self.feedrate_white = speed_white
 		self.feedrate_black = speed_black
 		self.material = material
@@ -104,7 +100,7 @@ class ImageProcessor():
 		
 		# sharpness
 		sharpness = ImageEnhance.Sharpness(img)
-		img = sharpness.enhance(self.sharpeningFactor) # 1.0 returns original
+		img = sharpness.enhance(self.sharpeningFactor) # 1.0 returns original, 2.0 sharpened
 		
 		# dither
 		if(self.dither == True):
@@ -118,6 +114,7 @@ class ImageProcessor():
 		return img
 
 	def generate_gcode(self, img, x,y,w,h):
+		print("img2gcode conversion started: \n", self.get_settings_as_comment(x,y,w,h))
 		pierce_intensity = 1000
 		direction_positive = True;
 		gcode = self.get_settings_as_comment(x,y,w,h)
@@ -153,6 +150,7 @@ class ImageProcessor():
 						if(lastBrightness >= 255 and self.intensity_white == 0): 
 							gcode += "G0 X" + self.twodigits(xpos) + " S0\n"  
 							
+							#TODO
 							# fixed piercetime
 							if(self.pierce_time > 0):
 								gcode += "S"+str(pierce_intensity)+ "\n" + "G4 P"+str(self.pierce_time)+"\n" # Dwell for P ms
