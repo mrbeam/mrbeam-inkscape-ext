@@ -44,8 +44,8 @@ class ImageProcessor():
 		self.sharpeningFactor = sharpening
 		self.dithering = (dithering == True or dithering == "True")
 		
-		#self.debugPreprocessing = True
 		self.debugPreprocessing = False
+		#self.debugPreprocessing = True
 
 	def get_settings_as_comment(self, x,y,w,h):
 		comment = ";Image: {:.2f}x{:.2f} @ {:.2f},{:.2f}".format(w,h,x,y) + "\n"

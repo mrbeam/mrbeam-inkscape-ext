@@ -3478,4 +3478,3 @@ class Laserengraver(inkex.Effect):
 #
 e = Laserengraver()
 e.affect()					
-
