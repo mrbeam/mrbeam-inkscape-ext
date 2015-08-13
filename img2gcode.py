@@ -31,7 +31,7 @@ class ImageProcessor():
 
 	def __init__( self, contrast = 1.0, sharpening = 1.0, beam_diameter = 0.25, 
 	intensity_black = 500, intensity_white = 0, speed_black = 500, speed_white = 3000, 
-	dither = False, pierce_time = 0, material = "default"):
+	dithering = False, pierce_time = 0, material = "default"):
 		
 		self.beam = beam_diameter
 		self.pierce_time = pierce_time/1000.0
@@ -42,7 +42,7 @@ class ImageProcessor():
 		self.material = material
 		self.contrastFactor = contrast
 		self.sharpeningFactor = sharpening
-		self.dither = dither
+		self.dithering = (dithering == True or dithering == "True")
 
 	def get_settings_as_comment(self, x,y,w,h):
 		comment = ";Image: {:.2f}x{:.2f} @ {:.2f},{:.2f}".format(w,h,x,y) + "\n"
@@ -56,7 +56,7 @@ class ImageProcessor():
 		comment += ";material = " + self.material + "\n"
 		comment += ";contrastFactor = {:.2f}".format(self.contrastFactor) + "\n"
 		comment += ";sharpeningFactor = {:.2f}".format(self.sharpeningFactor) + "\n"
-		comment += ";dither = " + str(self.dither) + "\n"
+		comment += ";dithering = " + str(self.dithering) + "\n"
 		return comment
 
 	def img_prepare(self, orig_img, w,h):
@@ -78,35 +78,47 @@ class ImageProcessor():
 		# scale
 		resized = orig_img.resize((dest_wpx, dest_hpx))
 		#resized = orig_img.resize((dest_wpx, dest_hpx), Image.ANTIALIAS)
+
+		resized.save("/tmp/img2gcode_1_resized.png")
+
 		
 		# remove transparency
 		whitebg = Image.new('RGBA', (dest_wpx, dest_hpx), "white")
 		img = Image.alpha_composite(whitebg, resized)
 
+		img.save("/tmp/img2gcode_2_whitebg.png")
+
+
 		# mirror?
 		#img = img.transpose(Image.FLIP_LEFT_RIGHT)
 
 		# contrast 
-		contrast = ImageEnhance.Contrast(img)
-		img = contrast.enhance(self.contrastFactor) # 1.0 returns original
+		if(self.dithering == False and self.contrastFactor > 1.0):
+			contrast = ImageEnhance.Contrast(img)
+			img = contrast.enhance(self.contrastFactor) # 1.0 returns original
+			img.save("/tmp/img2gcode_3_contrast.png")
 		
 		# greyscale
 		img = img.convert('L') 
+		img.save("/tmp/img2gcode_4_greyscale.png")
 
 		# curves depending on material
 		if(self.material != "default") :
 			# TODO
 			pass
 		
-		# sharpness
-		sharpness = ImageEnhance.Sharpness(img)
-		img = sharpness.enhance(self.sharpeningFactor) # 1.0 returns original, 2.0 sharpened
+		# sharpness (factor: 1 => unchanged , 25 => almost b/w)
+		if(self.dithering == False and self.sharpeningFactor > 1.0):
+			sharpness = ImageEnhance.Sharpness(img)
+			img = sharpness.enhance(self.sharpeningFactor)
+			img.save("/tmp/img2gcode_5_sharpened.png")
 		
-		# dither
-		if(self.dither == True):
+		# dithering
+		if(self.dithering == True):
 			img = img.convert('1') 
+			img.save("/tmp/img2gcode_6_dithered.png")
 		
-		#img.save("/tmp/gcode_base.png")
+		#img.save("/tmp/img2gcode_base.png")
 		
 
 
@@ -156,12 +168,13 @@ class ImageProcessor():
 								gcode += "S"+str(pierce_intensity)+ "\n" + "G4 P"+str(self.pierce_time)+"\n" # Dwell for P ms
 							
 							# dynamic piercetime
-							if(self.pierce_time > 0):
-								mult = self.get_pierce_time_multiplier(i, row, pix, width, height, direction_positive) # 0.0 .. 1.0
-								pt = mult * self.pierce_time
-								if(pt > 0):
-									pt_str = "{0:.3f}".format(pt)
-									gcode += "S"+str(pierce_intensity)+ "\n" + "G4 P"+pt_str+"\n" # Dwell for P ms
+							# TODO highly experimental. take line-distance into account.
+#							if(self.pierce_time > 0):
+#								mult = self.get_pierce_time_multiplier(i, row, pix, width, height, direction_positive) # 0.0 .. 1.0
+#								pt = mult * self.pierce_time
+#								if(pt > 0):
+#									pt_str = "{0:.3f}".format(pt)
+#									gcode += "S"+str(pierce_intensity)+ "\n" + "G4 P"+pt_str+"\n" # Dwell for P ms
 
 						else:
 							intensity = self.get_intensity(lastBrightness)
@@ -280,12 +293,12 @@ if __name__ == "__main__":
 	opts.add_option("-t", "--pierce-time", type="float", default="0", help="time to rest after laser is switched on in milliseconds", dest="pierce_time")
 	opts.add_option("-c", "--contrast", type="float", help="contrast adjustment: 0.0 => gray, 1.0 => unchanged, >1.0 => intensified", default=1.0, dest="contrast")
 	opts.add_option("", "--sharpening", type="float", help="image sharpening: 0.0 => blurred, 1.0 => unchanged, >1.0 => sharpened", default=1.0, dest="sharpening")
-	opts.add_option("", "--dither", type="string", help="convert image to black and white pixels", default="false", dest="dither")
+	opts.add_option("", "--dithering", type="string", help="convert image to black and white pixels", default="false", dest="dithering")
 	opts.add_option("", "--no-headers", type="string", help="omits Mr Beam start and end sequences", default="false", dest="noheaders")
 
 	(options, args) = opts.parse_args()
 	
-	boolDither = (options.dither == "true")
+	boolDither = (options.dithering == "true")
 	ip = ImageProcessor(options.feedrate, options.contrast, options.sharpening, options.beam_diameter, 
 	options.intensity_black, options.intensity_white, options.speed_black, options.speed_white, 
 	boolDither, options.pierce_time, material = "default")

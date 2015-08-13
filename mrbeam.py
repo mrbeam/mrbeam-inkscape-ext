@@ -2298,7 +2298,7 @@ class Laserengraver(inkex.Effect):
 		self.OptionParser.add_option("-t", "--pierce-time", type="float", default="0", help="time to rest after laser is switched on in milliseconds", dest="pierce_time")
 		self.OptionParser.add_option("-c", "--contrast", type="float", help="contrast adjustment: 0.0 => gray, 1.0 => unchanged, >1.0 => intensified", default=1.0, dest="contrast")
 		self.OptionParser.add_option("", "--sharpening", type="float", help="image sharpening: 0.0 => blurred, 1.0 => unchanged, >1.0 => sharpened", default=1.0, dest="sharpening")
-		self.OptionParser.add_option("", "--dither", type="string", help="convert image to black and white pixels", default="false", dest="dither")
+		self.OptionParser.add_option("", "--img-dithering", type="string", help="convert image to black and white pixels", default="false", dest="dithering")
 		self.OptionParser.add_option("", "--beam-diameter", type="float", help="laser beam diameter, default 0.25mm", default=0.25, dest="beam_diameter")
 
 	def getDocumentWidth(self):
@@ -3318,11 +3318,11 @@ class Laserengraver(inkex.Effect):
 
 					# contrast = 1.0, sharpening = 1.0, beam_diameter = 0.25, 
 					# intensity_black = 1000, intensity_white = 0, speed_black = 30, speed_white = 500, 
-					# dither = True, pierce_time = 500, material = "default"):
+					# dithering = True, pierce_time = 500, material = "default"):
 					ip = ImageProcessor(contrast = self.options.contrast, sharpening = self.options.sharpening, beam_diameter = 0.25,
 					intensity_black = self.options.intensity_black, intensity_white = self.options.intensity_white, 
 					speed_black = self.options.speed_black, speed_white = self.options.speed_white, 
-					dither = self.options.dither,
+					dithering = self.options.dithering,
 					pierce_time = self.options.pierce_time, material = "default")
 					data = imgNode.get('href')
 					if(data is None):
