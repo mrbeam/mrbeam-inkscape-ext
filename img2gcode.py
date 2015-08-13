@@ -43,6 +43,9 @@ class ImageProcessor():
 		self.contrastFactor = contrast
 		self.sharpeningFactor = sharpening
 		self.dithering = (dithering == True or dithering == "True")
+		
+		#self.debugPreprocessing = True
+		self.debugPreprocessing = False
 
 	def get_settings_as_comment(self, x,y,w,h):
 		comment = ";Image: {:.2f}x{:.2f} @ {:.2f},{:.2f}".format(w,h,x,y) + "\n"
@@ -76,17 +79,19 @@ class ImageProcessor():
 		print("scaling to {}x{}".format(dest_wpx, dest_hpx))
 
 		# scale
-		resized = orig_img.resize((dest_wpx, dest_hpx))
-		#resized = orig_img.resize((dest_wpx, dest_hpx), Image.ANTIALIAS)
+		img = orig_img.resize((dest_wpx, dest_hpx))
+		#img = orig_img.resize((dest_wpx, dest_hpx), Image.ANTIALIAS)
 
-		resized.save("/tmp/img2gcode_1_resized.png")
+		if(self.debugPreprocessing):
+			img.save("/tmp/img2gcode_1_resized.png")
 
-		
 		# remove transparency
-		whitebg = Image.new('RGBA', (dest_wpx, dest_hpx), "white")
-		img = Image.alpha_composite(whitebg, resized)
+		if(img.mode == 'RGBA'):
+			whitebg = Image.new('RGBA', (dest_wpx, dest_hpx), "white")
+			img = Image.alpha_composite(whitebg, resized)
 
-		img.save("/tmp/img2gcode_2_whitebg.png")
+		if(self.debugPreprocessing):
+			img.save("/tmp/img2gcode_2_whitebg.png")
 
 
 		# mirror?
@@ -96,11 +101,13 @@ class ImageProcessor():
 		if(self.dithering == False and self.contrastFactor > 1.0):
 			contrast = ImageEnhance.Contrast(img)
 			img = contrast.enhance(self.contrastFactor) # 1.0 returns original
-			img.save("/tmp/img2gcode_3_contrast.png")
+			if(self.debugPreprocessing):
+				img.save("/tmp/img2gcode_3_contrast.png")
 		
 		# greyscale
 		img = img.convert('L') 
-		img.save("/tmp/img2gcode_4_greyscale.png")
+		if(self.debugPreprocessing):
+			img.save("/tmp/img2gcode_4_greyscale.png")
 
 		# curves depending on material
 		if(self.material != "default") :
@@ -111,16 +118,15 @@ class ImageProcessor():
 		if(self.dithering == False and self.sharpeningFactor > 1.0):
 			sharpness = ImageEnhance.Sharpness(img)
 			img = sharpness.enhance(self.sharpeningFactor)
-			img.save("/tmp/img2gcode_5_sharpened.png")
+			if(self.debugPreprocessing):
+				img.save("/tmp/img2gcode_5_sharpened.png")
 		
 		# dithering
 		if(self.dithering == True):
 			img = img.convert('1') 
-			img.save("/tmp/img2gcode_6_dithered.png")
+			if(self.debugPreprocessing):
+				img.save("/tmp/img2gcode_6_dithered.png")
 		
-		#img.save("/tmp/img2gcode_base.png")
-		
-
 
 		# return pixel array
 		return img

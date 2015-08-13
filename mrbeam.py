@@ -3319,7 +3319,7 @@ class Laserengraver(inkex.Effect):
 					# contrast = 1.0, sharpening = 1.0, beam_diameter = 0.25, 
 					# intensity_black = 1000, intensity_white = 0, speed_black = 30, speed_white = 500, 
 					# dithering = True, pierce_time = 500, material = "default"):
-					ip = ImageProcessor(contrast = self.options.contrast, sharpening = self.options.sharpening, beam_diameter = 0.25,
+					ip = ImageProcessor(contrast = self.options.contrast, sharpening = self.options.sharpening, beam_diameter = self.options.beam_diameter,
 					intensity_black = self.options.intensity_black, intensity_white = self.options.intensity_white, 
 					speed_black = self.options.speed_black, speed_white = self.options.speed_white, 
 					dithering = self.options.dithering,
