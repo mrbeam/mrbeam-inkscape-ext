@@ -39,6 +39,7 @@ import infill_generator
 import machine_settings
 from img2gcode import ImageProcessor
 
+import optparse
 import os
 import math
 import bezmisc
@@ -93,20 +94,7 @@ straight_distance_tolerance = 0.0001
 engraving_tolerance = 0.0001
 loft_lengths_tolerance = 0.0000001
 options = {}
-#defaults = {
-#'header': """
-#$H
-#G92X0Y0Z0
-#G90
-#M08
-#""",
-#'footer': """
-#M05S0
-#G0 X0.000 Y0.000
-#M09
-#M02
-#"""
-#}
+
 
 intersection_recursion_depth = 10
 intersection_tolerance = 0.00001
@@ -1027,7 +1015,7 @@ def csp_concat_subpaths(*s):
 
 def csp_draw(csp, color="#05f", group = None, style="fill:none;", width = .1, comment = "") :
 	if csp!=[] and csp!=[[]] :
-		if group == None : group = options.doc_root 
+		if group == None : group = options['doc_root'] 
 		style += "stroke:"+color+";"+ "stroke-width:%0.4fpx;"%width
 		args = {"d": cubicsuperpath.formatPath(csp), "style":style}
 		if comment!="" : args["comment"] = str(comment)
@@ -1274,7 +1262,7 @@ def draw_text(text,x,y,style = None, font_size = 20) :
 	if style == None : 
 		style = "font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;fill:#000000;fill-opacity:1;stroke:none;"
 	style += "font-size:%fpx;"%font_size
-	t = inkex.etree.SubElement(	options.doc_root, inkex.addNS('text','svg'), {	
+	t = inkex.etree.SubElement(	options['doc_root'], inkex.addNS('text','svg'), {	
 							'x':	str(x),
 							inkex.addNS("space","xml"):"preserve",
 							'y':	str(y)
@@ -1296,9 +1284,9 @@ def draw_pointer(x,color = "#f00", figure = "cross", comment = "", width = .1) :
 		s = ""
 		for i in range(1,len(x)/2) :
 			s+= " %s, %s " %(x[i*2],x[i*2+1])
-		inkex.etree.SubElement( options.doc_root, inkex.addNS('path','svg'), {"d": "M %s,%s L %s"%(x[0],x[1],s), "style":"fill:none;stroke:%s;stroke-width:%f;"%(color,width),"comment":str(comment)} )
+		inkex.etree.SubElement( options['doc_root'], inkex.addNS('path','svg'), {"d": "M %s,%s L %s"%(x[0],x[1],s), "style":"fill:none;stroke:%s;stroke-width:%f;"%(color,width),"comment":str(comment)} )
 	else :
-		inkex.etree.SubElement( options.doc_root, inkex.addNS('path','svg'), {"d": "m %s,%s l 10,10 -20,-20 10,10 -10,10, 20,-20"%(x[0],x[1]), "style":"fill:none;stroke:%s;stroke-width:%f;"%(color,width),"comment":str(comment)} )
+		inkex.etree.SubElement( options['doc_root'], inkex.addNS('path','svg'), {"d": "m %s,%s l 10,10 -20,-20 10,10 -10,10, 20,-20"%(x[0],x[1]), "style":"fill:none;stroke:%s;stroke-width:%f;"%(color,width),"comment":str(comment)} )
 
 
 def straight_segments_intersection(a,b, true_intersection = True) : # (True intersection means check ta and tb are in [0,1])
@@ -1364,8 +1352,8 @@ def cubic_solver(a,b,c,d):
 ################################################################################
 
 def print_(*arg):
-	if(options.log_filename != ''):
-		f = open(options.log_filename,"a")
+	if(options['log_filename'] != ''):
+		f = open(options['log_filename'],"a")
 		for s in arg :
 			s = str(unicode(s).encode('unicode_escape'))+" "
 			f.write( s )
@@ -1644,7 +1632,7 @@ def csp_offset(csp, r) :
 		#for k,t in intersection[i]:
 		#	draw_pointer(csp_at_t(subpath_offset[k-1], subpath_offset[k], t))
 			
-	#inkex.etree.SubElement( options.doc_root, inkex.addNS('path','svg'), {"d": cubicsuperpath.formatPath(unclipped_offset), "style":"fill:none;stroke:#0f0;"} )	
+	#inkex.etree.SubElement( options['doc_root'], inkex.addNS('path','svg'), {"d": cubicsuperpath.formatPath(unclipped_offset), "style":"fill:none;stroke:#0f0;"} )	
 	print_("Offsetted path in %s"%(time.time()-time_))
 	time_ = time.time()
 	
@@ -1746,7 +1734,7 @@ def csp_offset(csp, r) :
 			
 		if not clip :
 			result += [s1[:]]
-		elif options.offset_draw_clippend_path :
+		elif options['offset_draw_clippend_path'] :
 			csp_draw([s1],color="Red",width=.1)
 			draw_pointer( csp_at_t(s2[-2],s2[-1],1.)+
 				(P(csp_at_t(s2[-2],s2[-1],1.))+ P(csp_normalized_normal(s2[-2],s2[-1],1.))*10).to_list(),"Green", "line"  )
@@ -1762,7 +1750,7 @@ def csp_offset(csp, r) :
 	for s in joined_result[:] :
 		if csp_subpaths_end_to_start_distance2(s,s) > 0.001 :
 			# Remove open parts
-			if options.offset_draw_clippend_path:
+			if options['offset_draw_clippend_path']:
 				csp_draw([s],color="Orange",width=1)
 				draw_pointer(s[0][1], comment= csp_subpaths_end_to_start_distance2(s,s))
 				draw_pointer(s[-1][1], comment = csp_subpaths_end_to_start_distance2(s,s))
@@ -1785,7 +1773,7 @@ def csp_offset(csp, r) :
 		dist = csp_to_point_distance(original_csp, s[int(len(s)/2)][1], dist_bounds = [r1,r2], tolerance = .000001)
 		if not r1 < dist[0] < r2 : 
 			joined_result.remove(s)
-			if options.offset_draw_clippend_path:
+			if options['offset_draw_clippend_path']:
 				csp_draw([s], comment = math.sqrt(dist[0]))
 				draw_pointer(csp_at_t(csp[dist[1]][dist[2]-1],csp[dist[1]][dist[2]],dist[3])+s[int(len(s)/2)][1],"blue", "line", comment = [math.sqrt(dist[0]),i,j,sp]  )
 
@@ -1808,7 +1796,7 @@ def csp_offset(csp, r) :
 ################################################################################
 def biarc(sp1, sp2, z1, z2, depth=0):
 	def biarc_split(sp1,sp2, z1, z2, depth): 
-		if depth<options.biarc_max_split_depth:
+		if depth<options['biarc_max_split_depth']:
 			sp1,sp2,sp3 = csp_split(sp1,sp2)
 			l1, l2 = cspseglength(sp1,sp2), cspseglength(sp2,sp3)
 			if l1+l2 == 0 : zm = z1
@@ -1881,7 +1869,7 @@ def biarc(sp1, sp2, z1, z2, depth=0):
 	if R1==None or R2==None or (R1-P0).mag()<straight_tolerance or (R2-P2).mag()<straight_tolerance	: return [ [sp1[1],'line', 0, 0, sp2[1], [z1,z2]] ]
 	
 	d = csp_to_arc_distance(sp1,sp2, [P0,P2,R1,a1],[P2,P4,R2,a2])
-	if d > 1 and depth<options.biarc_max_split_depth	 : return biarc_split(sp1, sp2, z1, z2, depth)
+	if d > 1 and depth<options['biarc_max_split_depth']	 : return biarc_split(sp1, sp2, z1, z2, depth)
 	else:
 		if R2.mag()*a2 == 0 : zm = z2
 		else : zm  = z1 + (z2-z1)*(abs(R1.mag()*a1))/(abs(R2.mag()*a2)+abs(R1.mag()*a1)) 
@@ -2253,53 +2241,31 @@ class Polygon:
 ################################################################################
 
 class Laserengraver(inkex.Effect):
+	
+	def __init__(self, options, svg_file): # TODO ...
+		inkex.Effect.__init__(self)
+		self.svg_file = svg_file
+		self.setoptions(options)
+		
 
 	def export_gcode(self,gcode) :
 
-		if(self.options.noheaders):
+		if(self.options['noheaders']):
 			self.header = ""
 			self.footer = "M05\n"
 		else:
 			self.header = machine_settings.gcode_header
 			self.footer = machine_settings.gcode_footer
-		if self.options.unit == "G21 (All units in mm)" : 
+		if self.options['unit'] == "G21 (All units in mm)" : 
 			self.header += "G21\n\n"
-		elif self.options.unit == "G20 (All units in inches)" :
+		elif self.options['unit'] == "G20 (All units in inches)" :
 			self.header += "G20\n\n"
 			
-		f = open(self.options.directory + self.options.file, "w")
+		f = open(self.options['directory'] + self.options['file'], "w")
 		f.write(self.header + gcode + self.footer)
 		f.close()
+		print "wrote file: " + self.options['directory'] + self.options['file']
 
-	def __init__(self):
-		inkex.Effect.__init__(self)
-		self.OptionParser.add_option("-d", "--directory",					action="store", type="string",		 dest="directory", default=None,					help="Directory for gcode file")
-		self.OptionParser.add_option("-f", "--filename",					action="store", type="string",		 dest="file", default=None,						help="File name")			
-		self.OptionParser.add_option("",   "--add-numeric-suffix-to-filename", action="store", type="inkbool",	dest="add_numeric_suffix_to_filename", default=False,help="Add numeric suffix to filename")			
-		self.OptionParser.add_option("",   "--engraving-laser-speed",		action="store", type="int",		 dest="engraving_laser_speed", default="30",					help="Speed of laser during engraving")
-		self.OptionParser.add_option("",   "--laser-intensity",		action="store", type="int",		 dest="laser_intensity", default="1000",					help="Laser intensity during engraving")
-		self.OptionParser.add_option("",   "--suppress-all-messages",		 action="store", type="inkbool",	 dest="suppress_all_messages", default=True,				help="Check this to hide any messages during g-code generation")
-		self.OptionParser.add_option("",   "--create-log",					action="store", type="inkbool",	 dest="log_create_log", default=False,				help="")
-		self.OptionParser.add_option("",   "--log-filename",				  action="store", type="string",	  dest="log_filename", default='',					help="Create log files")
-		self.OptionParser.add_option("",   "--engraving-draw-calculation-paths",action="store", type="inkbool",	dest="engraving_draw_calculation_paths", default=False,		help="Draw additional graphics to debug engraving path")
-		self.OptionParser.add_option("",   "--unit",						action="store", type="string",		 dest="unit", default="G21 (All units in mm)",		help="Units")
-		self.OptionParser.add_option("",   "--dpi",						action="store", type="float",		 dest="svgDPI", default="90",		help="dpi of the SVG file. Use 90 for Inkscape and 72 for Illustrator")
-		self.OptionParser.add_option("",   "--active-tab",					action="store", type="string",		 dest="active_tab", default='"Laser"',						help="Defines which tab is active")
-		self.OptionParser.add_option("",   "--biarc-max-split-depth",		action="store", type="int",		 dest="biarc_max_split_depth", default="4",			help="Defines maximum depth of splitting while approximating using biarcs.")				
-		self.OptionParser.add_option("",   "--fill-areas",		action="store", type="inkbool",		 dest="fill_areas", default=False,			help="Fill filled paths line by line.")				
-		self.OptionParser.add_option("",   "--fill-spacing",		action="store", type="float",		 dest="fill_spacing", default=0.25,			help="Distance between area filling lines. Increase for faster engraving, decrease for better quality. Minimum: laser beam diameter")				
-		self.OptionParser.add_option("",   "--cross-fill",		action="store", type="inkbool",		 dest="cross_fill", default=False,			help="Fill areas with grid ?")				
-		self.OptionParser.add_option("",   "--fill-angle",		action="store", type="float",		 dest="fill_angle", default=0.0,			help="Angle of the fill pattern. 0.0 means parallel to x-axis.")				
-		self.OptionParser.add_option("",   "--no-header", type="string", help="omits Mr Beam start and end sequences", default="false", dest="noheaders")
-		self.OptionParser.add_option("",   "--img-intensity-white", type="int", default="0", help="intensity for white pixels, default 0", dest="intensity_white")
-		self.OptionParser.add_option("",   "--img-intensity-black", type="int", default="1000", help="intensity for black pixels, default 1000", dest="intensity_black")
-		self.OptionParser.add_option("",   "--img-speed-white", type="int", default="500", help="speed for white pixels, default 500", dest="speed_white")
-		self.OptionParser.add_option("",   "--img-speed-black", type="int", default="30", help="speed for black pixels, default 30", dest="speed_black")
-		self.OptionParser.add_option("-t", "--pierce-time", type="float", default="0", help="time to rest after laser is switched on in milliseconds", dest="pierce_time")
-		self.OptionParser.add_option("-c", "--contrast", type="float", help="contrast adjustment: 0.0 => gray, 1.0 => unchanged, >1.0 => intensified", default=1.0, dest="contrast")
-		self.OptionParser.add_option("", "--sharpening", type="float", help="image sharpening: 0.0 => blurred, 1.0 => unchanged, >1.0 => sharpened", default=1.0, dest="sharpening")
-		self.OptionParser.add_option("", "--img-dithering", type="string", help="convert image to black and white pixels", default="false", dest="dithering")
-		self.OptionParser.add_option("", "--beam-diameter", type="float", help="laser beam diameter, default 0.25mm", default=0.25, dest="beam_diameter")
 
 	def getDocumentWidth(self):
 		width = self.document.getroot().get('width')
@@ -2480,41 +2446,41 @@ class Laserengraver(inkex.Effect):
 	
 
 	def check_dir(self):
-		if self.options.directory[-1] not in ["/","\\"]:
-			if "\\" in self.options.directory :
-				self.options.directory += "\\"
+		if self.options['directory'][-1] not in ["/","\\"]:
+			if "\\" in self.options['directory'] :
+				self.options['directory'] += "\\"
 			else :
-				self.options.directory += "/"
-		print_("Checking directory: '%s'"%self.options.directory)
-		if (os.path.isdir(self.options.directory)):
+				self.options['directory'] += "/"
+		print_("Checking directory: '%s'"%self.options['directory'])
+		if (os.path.isdir(self.options['directory'])):
 			pass
 		else: 
 			self.error(_("Directory does not exist! Please specify existing directory at Preferences tab!"),"error")
 			return False
 
-		if self.options.add_numeric_suffix_to_filename :
-			dir_list = os.listdir(self.options.directory)
-			if "." in self.options.file : 
-				r = re.match(r"^(.*)(\..*)$",self.options.file)
-				ext = r.group(2)
-				name = r.group(1)
-			else:	 
-				ext = ""
-				name = self.options.file
-			max_n = 0
-			for s in dir_list :
-				r = re.match(r"^%s_0*(\d+)%s$"%(re.escape(name),re.escape(ext) ), s)
-				if r :
-					max_n = max(max_n,int(r.group(1)))
-			filename = name + "_" + ( "0"*(4-len(str(max_n+1))) + str(max_n+1) ) + ext
-			self.options.file = filename
+#		if True :
+#			dir_list = os.listdir(self.options['directory'])
+#			if "." in self.options['file'] : 
+#				r = re.match(r"^(.*)(\..*)$",self.options['file'])
+#				ext = r.group(2)
+#				name = r.group(1)
+#			else:	 
+#				ext = ""
+#				name = self.options['file']
+#			max_n = 0
+#			for s in dir_list :
+#				r = re.match(r"^%s_0*(\d+)%s$"%(re.escape(name),re.escape(ext) ), s)
+#				if r :
+#					max_n = max(max_n,int(r.group(1)))
+#			filename = name + "_" + ( "0"*(4-len(str(max_n+1))) + str(max_n+1) ) + ext
+#			self.options['file'] = filename
 		
-		print_("Testing writing rights on '%s'"%(self.options.directory+self.options.file))
+		print_("Testing writing rights on '%s'"%(self.options['directory']+self.options['file']))
 		try:	 
-			f = open(self.options.directory+self.options.file, "w")	
+			f = open(self.options['directory']+self.options['file'], "w")	
 			f.close()							
 		except:
-			self.error(_("Can not write to specified file!\n%s"%(self.options.directory+self.options.file)),"error")
+			self.error(_("Can not write to specified file!\n%s"%(self.options['directory']+self.options['file'])),"error")
 			return False
 		return True
 			
@@ -2551,10 +2517,6 @@ class Laserengraver(inkex.Effect):
 						[abs(a-current_a%math.pi2),			 a+current_a-current_a%math.pi2])[1]
 		if len(curve)==0 : return ""	
 				
-		#try :
-		#	self.last_used_tool == None
-		#except :
-		#	self.last_used_tool = None
 		print_("working on curve")
 		print_("Curve: " + str(curve))
 		g = ""
@@ -2732,8 +2694,6 @@ class Laserengraver(inkex.Effect):
 			sys.exit()
 		elif type_.lower() in re.split("[\s\n,\.]+", warnings.lower()) :
 			print_(s)
-			if not self.options.suppress_all_messages :
-				inkex.errormsg(s+"\n")
 		elif type_.lower() in re.split("[\s\n,\.]+", notes.lower()) :
 			print_(s)
 		else :
@@ -2785,12 +2745,12 @@ class Laserengraver(inkex.Effect):
 			if node.get("id") in self.selected :
 				self.selected_paths[layer] = self.selected_paths[layer] + [node] if layer in self.selected_paths else [node]  
 
-			if self.options.fill_areas == True:
+			if self.options['fill_areas'] == True:
 
 				if fill['visible']:
 					fillColor = fill['color']
 					ig = infill_generator.InfillGenerator( self.document, [node] )
-					fillings = ig.effect(self.options.fill_spacing, self.options.cross_fill, self.options.fill_angle)
+					fillings = ig.effect(self.options['fill_spacing'], self.options['cross_fill'], self.options['fill_angle'])
 					self.filled_areas[layer] = self.filled_areas[layer] + fillings if layer in self.filled_areas else fillings
 
 	# TODO handle display:none
@@ -3106,7 +3066,7 @@ class Laserengraver(inkex.Effect):
 		for layer in self.layers :
 			if layer in self.selected_paths :
 				for path in self.selected_paths[layer]:
-					if self.options.dxfpoints_action == 'replace':
+					if self.options['dxfpoints_action'] == 'replace':
 						path.set("dxfpoint","1")
 						r = re.match("^\s*.\s*(\S+)",path.get("d"))
 						if r!=None:
@@ -3114,10 +3074,10 @@ class Laserengraver(inkex.Effect):
 							path.set("d","m %s 2.9375,-6.343750000001 0.8125,1.90625 6.843748640396,-6.84374864039 0,0 0.6875,0.6875 -6.84375,6.84375 1.90625,0.812500000001 z" % r.group(1))
 							path.set("style",styles["dxf_points"])
 
-					if self.options.dxfpoints_action == 'save':
+					if self.options['dxfpoints_action'] == 'save':
 						path.set("dxfpoint","1")
 
-					if self.options.dxfpoints_action == 'clear' and path.get("dxfpoint") == "1":
+					if self.options['dxfpoints_action'] == 'clear' and path.get("dxfpoint") == "1":
 						path.set("dxfpoint","0")
 
 ################################################################################
@@ -3246,7 +3206,7 @@ class Laserengraver(inkex.Effect):
 						p += csp
 				dxfpoints=sort_dxfpoints(dxfpoints)
 				curve = self.parse_curve(p, layer)
-				intensity = self.options.laser_intensity
+				intensity = self.options['laser_intensity']
 				layerId = layer.get('id') or '?'
 				pathId = path.get('id') or '?'
 				gcode_outlines += "; Layer: " + layerId + ", outline of " + pathId + "\n"
@@ -3287,10 +3247,10 @@ class Laserengraver(inkex.Effect):
 #					simpletransform.applyTransformToPoint(_mat, lowerRight)
 #					
 #					# to MM / inch conversion
-#					if self.options.unit == "G21 (All units in mm)" : 
-#						ptPerUnit = self.options.svgDPI / 25.4 # 3.5433070660 @ 90dpi
-#					elif self.options.unit == "G20 (All units in inches)" :
-#						ptPerUnit = self.options.svgDPI
+#					if self.options['unit'] == "G21 (All units in mm)" : 
+#						ptPerUnit = self.options['svgDPI'] / 25.4 # 3.5433070660 @ 90dpi
+#					elif self.options['unit'] == "G20 (All units in inches)" :
+#						ptPerUnit = self.options['svgDPI']
 #						
 #					unitMat = [[1/ptPerUnit,0,0],[0,1/ptPerUnit,0]] # unit conversion matrix 
 #					simpletransform.applyTransformToPoint(unitMat, upperLeft)
@@ -3319,11 +3279,11 @@ class Laserengraver(inkex.Effect):
 					# contrast = 1.0, sharpening = 1.0, beam_diameter = 0.25, 
 					# intensity_black = 1000, intensity_white = 0, speed_black = 30, speed_white = 500, 
 					# dithering = True, pierce_time = 500, material = "default"):
-					ip = ImageProcessor(contrast = self.options.contrast, sharpening = self.options.sharpening, beam_diameter = self.options.beam_diameter,
-					intensity_black = self.options.intensity_black, intensity_white = self.options.intensity_white, 
-					speed_black = self.options.speed_black, speed_white = self.options.speed_white, 
-					dithering = self.options.dithering,
-					pierce_time = self.options.pierce_time, material = "default")
+					ip = ImageProcessor(contrast = self.options['contrast'], sharpening = self.options['sharpening'], beam_diameter = self.options['beam_diameter'],
+					intensity_black = self.options['intensity_black'], intensity_white = self.options['intensity_white'], 
+					speed_black = self.options['speed_black'], speed_white = self.options['speed_white'], 
+					dithering = self.options['dithering'],
+					pierce_time = self.options['pierce_time'], material = "default")
 					data = imgNode.get('href')
 					if(data is None):
 						data = imgNode.get(inkex.addNS('href', 'xlink'))
@@ -3368,14 +3328,14 @@ class Laserengraver(inkex.Effect):
 		
 		print_("Document height: " + str(doc_height), "viewBoxTransform:", viewBoxM);
 			
-		if self.options.unit == "G21 (All units in mm)" : 
+		if self.options['unit'] == "G21 (All units in mm)" : 
 			points = [[0.,0.,0.],[100.,0.,0.],[0.,100.,0.]]
-			orientation_scale = (self.options.svgDPI / 25.4) / viewBoxScale # 3.5433070660 @ 90dpi
+			orientation_scale = (self.options['svgDPI'] / 25.4) / viewBoxScale # 3.5433070660 @ 90dpi
 			###orientation_scale = 1 # easier debugging
 			print_("orientation_scale < 0 ===> switching to mm units=%0.10f"%orientation_scale )
-		elif self.options.unit == "G20 (All units in inches)" :
+		elif self.options['unit'] == "G20 (All units in inches)" :
 			points = [[0.,0.,0.],[5.,0.,0.],[0.,5.,0.]]
-			orientation_scale = self.options.svgDPI / viewBoxScale
+			orientation_scale = self.options['svgDPI'] / viewBoxScale
 			print_("orientation_scale < 0 ===> switching to inches units=%0.10f"%orientation_scale )
 
 		points = points[:2]
@@ -3415,66 +3375,95 @@ class Laserengraver(inkex.Effect):
 	def effect(self) :
 		global options
 		options = self.options
-		if(self.options.file == None):
-			without_path = os.path.basename(self.svg_file)
-			self.options.file = os.path.splitext(without_path)[0] + ".gcode"
-			print("using default filename", self.options.file)
-		if(self.options.directory == None):
-			self.options.directory = os.path.dirname(os.path.realpath(self.svg_file))
-			print("using default folder", self.options.directory)
-		options.self = self
-		options.doc_root = self.document.getroot()
+		
+		#options['self'] = self
+		options['doc_root'] = self.document.getroot()
 		# define print_ function 
 		global print_
-		if self.options.log_filename != '' :
+		if self.options['log_filename'] != '' :
 			try :
-				if os.path.isfile(self.options.log_filename) : os.remove(self.options.log_filename)
-				f = open(self.options.log_filename,"a")
-				f.write("Gcodetools log file.\nStarted at %s.\n%s\n" % (time.strftime("%d.%m.%Y %H:%M:%S"),options.log_filename))
-				f.write("%s tab is active.\n" % self.options.active_tab)
+				if os.path.isfile(self.options['log_filename']) : os.remove(self.options['log_filename'])
+				f = open(self.options['log_filename'],"a")
+				f.write("Gcodetools log file.\nStarted at %s.\n%s\n" % (time.strftime("%d.%m.%Y %H:%M:%S"),options['log_filename']))
 				f.close()
 			except :
 				print_  = lambda *x : None 
 		else : print_  = lambda *x : None 
-		if self.options.active_tab not in ['"Laser"', '"orientation"']:
-			self.error(_("Select the active tab - Laser."),"error")
-		else:
-			# Get all Gcodetools data from the scene.
+		
+		# Get all Gcodetools data from the scene.
+		self.get_info()
+		if self.orientation_points == {} :
+			self.error(_("Orientation points have not been defined! A default set of orientation points has been automatically added."),"warning")
+			self.orientation( self.layers[min(0,len(self.layers)-1)] )		
 			self.get_info()
-			if self.options.active_tab == '"Laser"':
-				if self.orientation_points == {} :
-					self.error(_("Orientation points have not been defined! A default set of orientation points has been automatically added."),"warning")
-					self.orientation( self.layers[min(0,len(self.layers)-1)] )		
-					self.get_info()
 
-				self.tools = {
-					"name": "Laser Engraver",
-					"id": "Laser Engraver 0001",
-					"diameter": 0.,
-					"shape": "10",
-					"penetration angle": 90.,
-					"penetration feed": self.options.engraving_laser_speed,
-					"depth step": 0.,
-					"feed": self.options.engraving_laser_speed,
-					"in trajectotry": "",
-					"out trajectotry": "",
-					"sog": "",
-					"spinlde rpm": "",
-					"CW or CCW": "",
-					"tool change gcode": " ",
-					"4th axis meaning": " ",
-					"4th axis scale": 1.,
-					"4th axis offset": 0.,
-					"passing feed": "800",					
-					"fine feed": "800"	
-				}
+		self.tools = {
+			"name": "Laser Engraver",
+			"id": "Laser Engraver 0001",
+			"diameter": 0.,
+			"shape": "10",
+			"penetration angle": 90.,
+			"penetration feed": self.options['engraving_laser_speed'],
+			"depth step": 0.,
+			"feed": self.options['engraving_laser_speed'],
+			"in trajectotry": "",
+			"out trajectotry": "",
+			"sog": "",
+			"spinlde rpm": "",
+			"CW or CCW": "",
+			"tool change gcode": " ",
+			"4th axis meaning": " ",
+			"4th axis scale": 1.,
+			"4th axis offset": 0.,
+			"passing feed": "800",					
+			"fine feed": "800"	
+		}
 
-				#self.get_info()
-				for p in self.paths :
-					#print "path", inkex.etree.tostring(p)
-					pass
-				self.laser()
-   
+		#self.get_info()
+		for p in self.paths :
+			#print "path", inkex.etree.tostring(p)
+			pass
+		self.laser()
+
 #
-e = Laserengraver()
-e.affect()					
+if __name__ == "__main__":
+	OptionParser = optparse.OptionParser(usage="usage: %prog [options] SVGfile")
+	OptionParser.add_option("--id", action="append", type="string", dest="ids", default=[], help="id attribute of object to manipulate")
+
+	OptionParser.add_option("-d", "--directory",					action="store", type="string",		 dest="directory", default=None,					help="Directory for gcode file")
+	OptionParser.add_option("-f", "--filename",					action="store", type="string",		 dest="file", default=None,						help="File name")			
+	OptionParser.add_option("",   "--engraving-laser-speed",		action="store", type="int",		 dest="engraving_laser_speed", default="30",					help="Speed of laser during engraving")
+	OptionParser.add_option("",   "--laser-intensity",		action="store", type="int",		 dest="laser_intensity", default="1000",					help="Laser intensity during engraving")
+	OptionParser.add_option("",   "--log-filename",				  action="store", type="string",	  dest="log_filename", default='',					help="Create log files")
+	OptionParser.add_option("",   "--unit",						action="store", type="string",		 dest="unit", default="G21 (All units in mm)",		help="Units")
+	OptionParser.add_option("",   "--dpi",						action="store", type="float",		 dest="svgDPI", default="90",		help="dpi of the SVG file. Use 90 for Inkscape and 72 for Illustrator")
+	OptionParser.add_option("",   "--biarc-max-split-depth",		action="store", type="int",		 dest="biarc_max_split_depth", default="4",			help="Defines maximum depth of splitting while approximating using biarcs.")				
+	OptionParser.add_option("",   "--fill-areas",		action="store_true", 		 dest="fill_areas", default=False,			help="Fill filled paths line by line.")				
+	OptionParser.add_option("",   "--fill-spacing",		action="store", type="float",		 dest="fill_spacing", default=0.25,			help="Distance between area filling lines. Increase for faster engraving, decrease for better quality. Minimum: laser beam diameter")				
+	OptionParser.add_option("",   "--cross-fill",		action="store_true", 		 dest="cross_fill", default=False,			help="Fill areas with grid ?")				
+	OptionParser.add_option("",   "--fill-angle",		action="store", type="float",		 dest="fill_angle", default=0.0,			help="Angle of the fill pattern. 0.0 means parallel to x-axis.")				
+	OptionParser.add_option("",   "--no-header", type="string", help="omits Mr Beam start and end sequences", default="false", dest="noheaders")
+	OptionParser.add_option("",   "--img-intensity-white", type="int", default="0", help="intensity for white pixels, default 0", dest="intensity_white")
+	OptionParser.add_option("",   "--img-intensity-black", type="int", default="1000", help="intensity for black pixels, default 1000", dest="intensity_black")
+	OptionParser.add_option("",   "--img-speed-white", type="int", default="500", help="speed for white pixels, default 500", dest="speed_white")
+	OptionParser.add_option("",   "--img-speed-black", type="int", default="30", help="speed for black pixels, default 30", dest="speed_black")
+	OptionParser.add_option("-t", "--pierce-time", type="float", default="0", help="time to rest after laser is switched on in milliseconds", dest="pierce_time")
+	OptionParser.add_option("-c", "--contrast", type="float", help="contrast adjustment: 0.0 => gray, 1.0 => unchanged, >1.0 => intensified", default=1.0, dest="contrast")
+	OptionParser.add_option("", "--sharpening", type="float", help="image sharpening: 0.0 => blurred, 1.0 => unchanged, >1.0 => sharpened", default=1.0, dest="sharpening")
+	OptionParser.add_option("", "--img-dithering", type="string", help="convert image to black and white pixels", default="false", dest="dithering")
+	OptionParser.add_option("", "--beam-diameter", type="float", help="laser beam diameter, default 0.25mm", default=0.25, dest="beam_diameter")
+
+	options, args = OptionParser.parse_args(sys.argv[1:])
+	option_dict = vars(options)
+	svg_file = args[-1]
+	
+	if(option_dict['file'] == None):
+		without_path = os.path.basename(self.svg_file)
+		option_dict['file'] = os.path.splitext(without_path)[0] + ".gcode"
+		print("using default filename", option_dict['file'])
+	if(option_dict['directory'] == None):
+		option_dict['directory'] = os.path.dirname(os.path.realpath(self.svg_file))
+		print("using default folder", option_dict['directory'])
+	
+	e = Laserengraver(option_dict, svg_file)
+	e.affect()					

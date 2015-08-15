@@ -45,7 +45,7 @@ class ImageProcessor():
 		self.dithering = (dithering == True or dithering == "True")
 		
 		self.debugPreprocessing = False
-		#self.debugPreprocessing = True
+		self.debugPreprocessing = True
 
 	def get_settings_as_comment(self, x,y,w,h):
 		comment = ";Image: {:.2f}x{:.2f} @ {:.2f},{:.2f}".format(w,h,x,y) + "\n"
@@ -88,7 +88,7 @@ class ImageProcessor():
 		# remove transparency
 		if(img.mode == 'RGBA'):
 			whitebg = Image.new('RGBA', (dest_wpx, dest_hpx), "white")
-			img = Image.alpha_composite(whitebg, resized)
+			img = Image.alpha_composite(whitebg, img)
 
 		if(self.debugPreprocessing):
 			img.save("/tmp/img2gcode_2_whitebg.png")
@@ -203,6 +203,7 @@ class ImageProcessor():
 			# flip direction after each line to go back and forth
 			direction_positive = not direction_positive
 			
+		gcode += ";EndImage\n"	
 		return gcode
 
 	def base64_to_gcode(self, base64str, w,h, x,y):

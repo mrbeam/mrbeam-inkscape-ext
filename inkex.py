@@ -108,25 +108,55 @@ class InkOption(optparse.Option):
 class Effect:
 	"""A class for creating Inkscape SVG Effects"""
 
+	#self.options = Defaults()
+	defaults = {
+		"ids": [],
+		"directory": None,
+		"file": None,
+		"engraving_laser_speed": 300,
+		"laser_intensity": 500,
+		#"suppress_all_messages": True,
+		"log_filename": '',
+		"unit": "G21 (All units in mm)",
+		"svgDPI": 90,
+		"biarc_max_split_depth": 4,
+		"fill_areas": False,
+		"fill_spacing": 0.25,
+		"cross_fill": False,
+		"fill_angle": 0.0,
+		"noheaders": "false",
+		"intensity_white": 0,
+		"intensity_black": 500,
+		"speed_white": 1500,
+		"speed_black": 250,
+		"pierce_time": 0,
+		"contrast": 1.0,
+		"sharpening": 1.0,
+		"dithering": False,
+		"beam_diameter": 0.25
+	}	
+	
 	def __init__(self, *args, **kwargs):
 		self.document=None
 		self.original_document=None
 		self.ctx=None
 		self.selected={}
 		self.doc_ids={}
-		self.options=None
-		self.args=None
-		self.OptionParser = optparse.OptionParser(usage="usage: %prog [options] SVGfile",option_class=InkOption)
-		self.OptionParser.add_option("--id",
-						action="append", type="string", dest="ids", default=[], 
-						help="id attribute of object to manipulate")
+		self.options = self.defaults
+		#self.args=None
+
 
 	def effect(self):
 		pass
+	
+	def setoptions(self, opts):
+		# set default values if option is missing
+		for key in self.options.keys():
+			if key in opts: 
+				self.options[key] = opts[key]
+			else:
+				print("Using default %s = %s" %(key, str(self.options[key])))
 
-	def getoptions(self,args=sys.argv[1:]):
-		"""Collect command line arguments"""
-		self.options, self.args = self.OptionParser.parse_args(args)
 
 	def parse(self,file=None):
 		"""Parse document in specified file or on stdin"""
@@ -166,7 +196,7 @@ class Effect:
 
 	def getselected(self):
 		"""Collect selected nodes"""
-		for i in self.options.ids:
+		for i in self.options['ids']:
 			path = '//*[@id="%s"]' % i
 			for node in self.document.xpath(path, namespaces=NSS):
 				self.selected[i] = node
@@ -213,8 +243,7 @@ class Effect:
 
 	def affect(self, args=sys.argv[1:], output=True):
 		"""Affect an SVG document with a callback effect"""
-		self.svg_file = args[-1]
-		self.getoptions(args)
+		#self.svg_file = args[-1]
 		self.parse()
 		self.getposinlayer()
 		self.getselected()
