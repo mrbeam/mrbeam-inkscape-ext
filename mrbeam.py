@@ -3085,7 +3085,22 @@ class Laserengraver(inkex.Effect):
 ###		Laser
 ###
 ################################################################################
-	def laser(self) :
+	def laser(self, on_progress=None, on_progress_args=None, on_progress_kwargs=None) :
+		def report_progress(on_progress, on_progress_args, on_progress_kwargs, done, total):
+			if(total == 0):
+				total = 1
+			
+			progress = done / float(total)
+			print("progress" , progress, done, total)
+			if on_progress is not None:
+				if on_progress_args is None:
+					on_progress_args = ()
+				if on_progress_kwargs is None:
+					on_progress_kwargs = dict()
+
+			on_progress_kwargs["_progress"] = progress
+			on_progress(*on_progress_args, **on_progress_kwargs)
+		
 		def get_boundaries(points):
 			minx,miny,maxx,maxy=None,None,None,None
 			out=[[],[],[],[]]
@@ -3184,6 +3199,18 @@ class Laserengraver(inkex.Effect):
 		#print_(("paths=",paths))
 		
 		#print("processing ", len(self.layers), " layers")
+		# sum up
+		itemAmount = 1
+		for layer in self.layers :
+			if layer in paths :
+				itemAmount += len(paths[layer])
+			if(layer in self.filled_areas):
+				itemAmount += len(self.filled_areas[layer])
+			if(layer in self.images):
+				itemAmount += len(self.images[layer])
+				
+		processedItemCount = 0
+		report_progress(on_progress, on_progress_args, on_progress_kwargs, processedItemCount, itemAmount)
 		for layer in self.layers :
 			if layer in paths :
 				#print(("layer",layer.get('id')))
@@ -3204,6 +3231,10 @@ class Laserengraver(inkex.Effect):
 						dxfpoints += [[x,y]]
 					else:
 						p += csp
+					
+					processedItemCount += 1
+					report_progress(on_progress, on_progress_args, on_progress_kwargs, processedItemCount, itemAmount)
+
 				dxfpoints=sort_dxfpoints(dxfpoints)
 				curve = self.parse_curve(p, layer)
 				intensity = self.options['laser_intensity']
@@ -3227,6 +3258,9 @@ class Laserengraver(inkex.Effect):
 					gcode_fillings += "; Layer: " + layer.get('id') + ", fill of " + fillpath.get('id') + "\n"
 					gcode_fillings += self.generate_gcode(crve, intensity)
 			
+					processedItemCount += 1
+					report_progress(on_progress, on_progress_args, on_progress_kwargs, processedItemCount, itemAmount)
+
 			if layer in self.images :
 				for imgNode in self.images[layer] :
 					# pt units
@@ -3297,6 +3331,9 @@ class Laserengraver(inkex.Effect):
 						print_("Error: unable to parse img data", data)
 
 					gcode_images += gcode
+
+					processedItemCount += 1
+					report_progress(on_progress, on_progress_args, on_progress_kwargs, processedItemCount, itemAmount)
 
 		self.export_gcode(gcode_images + "\n\n" + gcode_fillings + "\n\n" + gcode_outlines)
 
@@ -3372,7 +3409,7 @@ class Laserengraver(inkex.Effect):
 ###		Main function of Gcodetools class
 ###
 ################################################################################
-	def effect(self) :
+	def effect(self, on_progress=None, on_progress_args=None, on_progress_kwargs=None) :
 		global options
 		options = self.options
 		
@@ -3423,7 +3460,7 @@ class Laserengraver(inkex.Effect):
 		for p in self.paths :
 			#print "path", inkex.etree.tostring(p)
 			pass
-		self.laser()
+		self.laser(on_progress, on_progress_args, on_progress_kwargs)
 
 #
 if __name__ == "__main__":

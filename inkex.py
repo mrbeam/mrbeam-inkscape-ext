@@ -146,7 +146,7 @@ class Effect:
 		#self.args=None
 
 
-	def effect(self):
+	def effect(self, on_progress=None, on_progress_args=None, on_progress_kwargs=None):
 		pass
 	
 	def setoptions(self, opts):
@@ -241,15 +241,13 @@ class Effect:
 		if original != result:
 			self.document.write(sys.stdout)
 
-	def affect(self, args=sys.argv[1:], output=True):
+	def affect(self, on_progress=None, on_progress_args=None, on_progress_kwargs=None):
 		"""Affect an SVG document with a callback effect"""
-		#self.svg_file = args[-1]
 		self.parse()
 		self.getposinlayer()
 		self.getselected()
 		self.getdocids()
-		self.effect()
-		#if output: self.output()
+		self.effect(on_progress, on_progress_args, on_progress_kwargs)
 
 	def uniqueId(self, old_id, make_new_id = True):
 		new_id = old_id
