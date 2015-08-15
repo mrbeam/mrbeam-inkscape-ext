@@ -2841,7 +2841,7 @@ class Laserengraver(inkex.Effect):
 		
 		
 	def handle_image(self, imgNode, layer):
-		self.images[layer] = self.images[layer] + imgNode if layer in self.images else [imgNode]
+		self.images[layer] = self.images[layer] + [imgNode] if layer in self.images else [imgNode]
 		
 
 ################################################################################
