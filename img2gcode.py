@@ -162,7 +162,8 @@ class ImageProcessor():
 				if(brightness != lastBrightness ):
 					if(i != pixelrange[0]): # don't move after new line
 							
-						xpos = x + self.beam * (i if (direction_positive) else (i+1)) # calculate position; backward lines need to be shifted by +1 beam diameter
+						xpos = x + self.beam * (i if (direction_positive) else (i)) # calculate position; backward lines need to be shifted by +1 beam diameter
+						#xpos = x + self.beam * (i if (direction_positive) else (i+1)) # calculate position; backward lines need to be shifted by +1 beam diameter
 							
 						# fast skipping whitespace
 						if(lastBrightness >= 255 and self.intensity_white == 0): 

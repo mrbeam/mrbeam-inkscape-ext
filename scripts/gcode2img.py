@@ -71,11 +71,9 @@ def debug_image(gcode, pixelsize):
 	for line in pix:
 		if(line['g'] == '1' or line['g'] == '0'):
 			x = int((line['x']-xmin) * 1/pixelsize)
-			if(line['ltr']):
-				#x = x-1
-				pass
+			if(not line['ltr']):
+				x = x+1
 			y = h-1 - (line['y'] - ymin) * 1/pixelsize
-			print(y, line)
 			if(line['g'] == '1'):
 				s = int((1-line['s'] / 1000.0) * 255) # intensity (0-1000) to luminance conversion
 				f = (line['f'] * f_factor) * 255
