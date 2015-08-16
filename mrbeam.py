@@ -3087,7 +3087,6 @@ class Laserengraver(inkex.Effect):
 				total = 1
 			
 			progress = done / float(total)
-			print("progress" , progress, done, total)
 			if on_progress is not None:
 				if on_progress_args is None:
 					on_progress_args = ()
@@ -3437,35 +3436,13 @@ class Laserengraver(inkex.Effect):
 			self.orientation( self.layers[min(0,len(self.layers)-1)] )		
 			self.get_info()
 
-		self.tools = {
-			"name": "Laser Engraver",
-			"id": "Laser Engraver 0001",
-			"diameter": 0.,
-			"shape": "10",
-			"penetration angle": 90.,
-			"penetration feed": self.options['engraving_laser_speed'],
-			"depth step": 0.,
-			"feed": self.options['engraving_laser_speed'],
-			"in trajectotry": "",
-			"out trajectotry": "",
-			"sog": "",
-			"spinlde rpm": "",
-			"CW or CCW": "",
-			"tool change gcode": " ",
-			"4th axis meaning": " ",
-			"4th axis scale": 1.,
-			"4th axis offset": 0.,
-			"passing feed": "800",					
-			"fine feed": "800"	
-		}
 
-		#self.get_info()
 		for p in self.paths :
 			#print "path", inkex.etree.tostring(p)
 			pass
 		self.laser(on_progress, on_progress_args, on_progress_kwargs)
 
-#
+
 if __name__ == "__main__":
 	OptionParser = optparse.OptionParser(usage="usage: %prog [options] SVGfile")
 	OptionParser.add_option("--id", action="append", type="string", dest="ids", default=[], help="id attribute of object to manipulate")
