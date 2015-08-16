@@ -47,8 +47,8 @@ class ImageProcessor():
 		self.debugPreprocessing = False
 		self.debugPreprocessing = True
 
-	def get_settings_as_comment(self, x,y,w,h):
-		comment = ";Image: {:.2f}x{:.2f} @ {:.2f},{:.2f}".format(w,h,x,y) + "\n"
+	def get_settings_as_comment(self, x,y,w,h, file_id = ''):
+		comment = ";Image: {:.2f}x{:.2f} @ {:.2f},{:.2f}|".format(w,h,x,y) + file_id+"\n"
 		comment += ";self.beam = {:.2f}".format(self.beam) + "\n"
 		comment += ";pierce_time = {:.2f}".format(self.pierce_time/1000.0) + "\n"
 		comment += ";intensity_black = {:.2f}".format(self.intensity_black) + "\n"
@@ -131,11 +131,11 @@ class ImageProcessor():
 		# return pixel array
 		return img
 
-	def generate_gcode(self, img, x,y,w,h):
-		print("img2gcode conversion started: \n", self.get_settings_as_comment(x,y,w,h))
+	def generate_gcode(self, img, x,y,w,h, file_id):
+		print("img2gcode conversion started: \n", self.get_settings_as_comment(x,y,w,h, file_id))
 		pierce_intensity = 1000
 		direction_positive = True;
-		gcode = self.get_settings_as_comment(x,y,w,h)
+		gcode = self.get_settings_as_comment(x,y,w,h, file_id)
 		gcode += 'G0 X'+self.twodigits(x)+' Y'+self.twodigits(y) + ' S0\n' # move to upper left
 		gcode += 'F ' + str(self.feedrate_white) + '\n' # set an initial feedrate
 		gcode += 'M3S0\n' # enable laser
@@ -207,7 +207,7 @@ class ImageProcessor():
 		gcode += ";EndImage\n"	
 		return gcode
 
-	def base64_to_gcode(self, base64str, w,h, x,y):
+	def base64_to_gcode(self, base64str, w,h, x,y, file_id):
 		if(base64str is None):
 			print("ERROR: image is not base64 encoded")
 			return ""; 
@@ -225,22 +225,22 @@ class ImageProcessor():
 		img = Image.open(image_string)
 
 		pixArray = self.img_prepare(img, w, h)
-		gcode = self.generate_gcode(pixArray, x, y, w, h)
+		gcode = self.generate_gcode(pixArray, x, y, w, h, file_id)
 		return gcode
 	
-	def imgurl_to_gcode(self, url, w,h, x,y):
+	def imgurl_to_gcode(self, url, w,h, x,y, file_id):
 		import urllib, cStringIO
 		file = cStringIO.StringIO(urllib.urlopen(url).read())
 		img = Image.open(file)
 		pixArray = self.img_prepare(img, w, h)
-		gcode = self.generate_gcode(pixArray, x, y, w, h)
+		gcode = self.generate_gcode(pixArray, x, y, w, h, file_id)
 		return gcode
 	
 	# x,y are the lowerLeft of the image
-	def img_to_gcode(self, path, w,h, x,y):
+	def img_to_gcode(self, path, w,h, x,y, file_id):
 		img = Image.open(path)
 		pixArray = self.img_prepare(img, w, h)
-		gcode = self.generate_gcode(pixArray, x, y, w, h)
+		gcode = self.generate_gcode(pixArray, x, y, w, h, file_id)
 		return gcode
 	
 	def twodigits(self, fl):

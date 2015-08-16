@@ -3263,6 +3263,8 @@ class Laserengraver(inkex.Effect):
 
 			if layer in self.images :
 				for imgNode in self.images[layer] :
+					file_id = imgNode.get('data-serveurl', '')
+					
 					# pt units
 					x = float(imgNode.get("x"))
 					y = float(imgNode.get("y"))
@@ -3324,9 +3326,9 @@ class Laserengraver(inkex.Effect):
 						
 					gcode = ''
 					if(data.startswith("data:")):
-						gcode = ip.base64_to_gcode(data, w, h, upperLeft[0], lowerRight[1])
+						gcode = ip.base64_to_gcode(data, w, h, upperLeft[0], lowerRight[1], file_id)
 					elif(data.startswith("http://")):
-						gcode = ip.imgurl_to_gcode(data, w, h, upperLeft[0], lowerRight[1])
+						gcode = ip.imgurl_to_gcode(data, w, h, upperLeft[0], lowerRight[1], file_id)
 					else:
 						print_("Error: unable to parse img data", data)
 
