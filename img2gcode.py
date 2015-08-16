@@ -50,7 +50,7 @@ class ImageProcessor():
 	def get_settings_as_comment(self, x,y,w,h, file_id = ''):
 		comment = ";Image: {:.2f}x{:.2f} @ {:.2f},{:.2f}|".format(w,h,x,y) + file_id+"\n"
 		comment += ";self.beam = {:.2f}".format(self.beam) + "\n"
-		comment += ";pierce_time = {:.2f}".format(self.pierce_time/1000.0) + "\n"
+		comment += ";pierce_time = {:.3f}s".format(self.pierce_time) + "\n"
 		comment += ";intensity_black = {:.2f}".format(self.intensity_black) + "\n"
 		comment += ";intensity_white = {:.2f}".format(self.intensity_white) + "\n"
 		comment += ";feedrate_white = {:.2f}".format(self.feedrate_white) + "\n"

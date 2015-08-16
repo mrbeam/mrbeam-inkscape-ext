@@ -2242,11 +2242,10 @@ class Polygon:
 
 class Laserengraver(inkex.Effect):
 	
-	def __init__(self, options, svg_file): # TODO ...
+	def __init__(self, options, svg_file): 
 		inkex.Effect.__init__(self)
 		self.svg_file = svg_file
 		self.setoptions(options)
-		
 
 	def export_gcode(self,gcode) :
 
@@ -2494,12 +2493,9 @@ class Laserengraver(inkex.Effect):
 ###		Crve defenitnion [start point, type = {'arc','line','move','end'}, arc center, arc angle, end point, [zstart, zend]]		
 ###
 ################################################################################
-	def generate_gcode(self, curve, intensity = 0, feedrate = 0):
+	def generate_gcode(self, curve, intensity = 0, feedrate = 0, pierce_time = 0):
 		print ("generate_gcode()")
-		#for p in curve : print "  * ",p
-		if feedrate == 0 : feedrate = self.tools['penetration feed']
-		tool = self.tools
-		print_("Tool in g-code generator: " + str(tool))
+
 		def c(c):
 			c = [c[i] if i<len(c) else None for i in range(6)]
 			if c[5] == 0 : c[5]=None
@@ -2522,14 +2518,14 @@ class Laserengraver(inkex.Effect):
 		g = ""
 
 		lg, f =  'G00', "F%f"%feedrate
-		penetration_feed = "F%s"%feedrate 
-		current_a = 0
 		for i in range(1,len(curve)):
 		#	Creating Gcode for curve between s=curve[i-1] and si=curve[i] start at s[0] end at s[4]=si[0]
 			s, si = curve[i-1], curve[i]
 			feed = f if lg not in ['G01','G02','G03'] else ''
 			if s[1]	== 'move':
 				g += "G0" + c(si[0]) + "\n" + machine_settings.gcode_before_path(intensity) + "\n"
+				if(pierce_time > 0):
+					g += "G4P%.3f\n" % (round(pierce_time/1000.0,4)) 
 				lg = 'G00'
 			elif s[1] == 'end':
 				g += machine_settings.gcode_after_path() + "\n"
@@ -3238,15 +3234,20 @@ class Laserengraver(inkex.Effect):
 				dxfpoints=sort_dxfpoints(dxfpoints)
 				curve = self.parse_curve(p, layer)
 				intensity = self.options['laser_intensity']
+				feedrate = self.options['engraving_laser_speed']
+				pierce_time = self.options['pierce_time']
 				layerId = layer.get('id') or '?'
 				pathId = path.get('id') or '?'
 				gcode_outlines += "; Layer: " + layerId + ", outline of " + pathId + "\n"
-				gcode_outlines += self.generate_gcode(curve, intensity)
+				gcode_outlines += self.generate_gcode(curve, intensity, feedrate, pierce_time)
 
 			if layer in self.filled_areas :
 				for fillpath in self.filled_areas[layer] :		
 					style = simplestyle.parseStyle(fillpath["style"])
 					intensity = color2intensity.color2intensity(style["stroke"])
+					feedrate = self.options['engraving_laser_speed']
+					pierce_time = self.options['pierce_time']
+
 					csp = cubicsuperpath.parsePath(fillpath.get("d"))
 
 					# apply layer transform (whyever it is missing here?!)
@@ -3256,7 +3257,7 @@ class Laserengraver(inkex.Effect):
 					# this parse_curve should do the transformation job originally
 					crve = self.parse_curve(csp, layer)
 					gcode_fillings += "; Layer: " + layer.get('id') + ", fill of " + fillpath.get('id') + "\n"
-					gcode_fillings += self.generate_gcode(crve, intensity)
+					gcode_fillings += self.generate_gcode(crve, intensity, feedrate, pierce_time)
 			
 					processedItemCount += 1
 					report_progress(on_progress, on_progress_args, on_progress_kwargs, processedItemCount, itemAmount)
