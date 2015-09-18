@@ -3093,8 +3093,8 @@ class Laserengraver(inkex.Effect):
 				if on_progress_kwargs is None:
 					on_progress_kwargs = dict()
 
-			on_progress_kwargs["_progress"] = progress
-			on_progress(*on_progress_args, **on_progress_kwargs)
+				on_progress_kwargs["_progress"] = progress
+				on_progress(*on_progress_args, **on_progress_kwargs)
 		
 		def get_boundaries(points):
 			minx,miny,maxx,maxy=None,None,None,None
@@ -3475,11 +3475,11 @@ if __name__ == "__main__":
 	svg_file = args[-1]
 	
 	if(option_dict['file'] == None):
-		without_path = os.path.basename(self.svg_file)
+		without_path = os.path.basename(svg_file)
 		option_dict['file'] = os.path.splitext(without_path)[0] + ".gcode"
 		print("using default filename", option_dict['file'])
 	if(option_dict['directory'] == None):
-		option_dict['directory'] = os.path.dirname(os.path.realpath(self.svg_file))
+		option_dict['directory'] = os.path.dirname(os.path.realpath(svg_file))
 		print("using default folder", option_dict['directory'])
 	
 	e = Laserengraver(option_dict, svg_file)
