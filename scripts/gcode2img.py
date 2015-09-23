@@ -65,7 +65,8 @@ def debug_image(gcode, pixelsize):
 	print("Image (px): {:.2f}x{:.2f} @ {:.2f},{:.2f}".format(w, h, xmin * 1/pixelsize, ymin * 1/pixelsize) )
 
 
-	img = Image.new("L", (w*2,h), "white")
+	#img = Image.new("L", (w*2,h), "white")
+	img = Image.new("RGB", (w*2,h), "white")
 	pixarray = img.load()
 	last_px = None;
 	for line in pix:
@@ -75,12 +76,18 @@ def debug_image(gcode, pixelsize):
 				x = x+1
 			y = h-1 - (line['y'] - ymin) * 1/pixelsize
 			if(line['g'] == '1'):
-				s = int((1-line['s'] / 1000.0) * 255) # intensity (0-1000) to luminance conversion
-				f = (line['f'] * f_factor) * 255
+				#s = int((1-line['s'] / 1000.0) * 255) # intensity (0-1000) to luminance conversion
+				#f = (line['f'] * f_factor) * 255
+				intensity = int((1-line['s'] / 1000.0) * 255) # intensity (0-1000) to luminance conversion
+				feedrate = int((line['f'] * f_factor) * 255)
+				s = (255, intensity, intensity)
+				f = (0, feedrate, 0)
 				if(last_px != None):
 					_min = min(last_px[0], x)
 					_max = max(last_px[0], x)
 					if(_min == _max):
+						#pixarray[x, y] = s
+						#pixarray[x+w, y] = f
 						pixarray[x, y] = s
 						pixarray[x+w, y] = f
 					else:

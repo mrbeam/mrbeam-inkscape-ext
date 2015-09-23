@@ -46,6 +46,9 @@ class ImageProcessor():
 		
 		self.debugPreprocessing = False
 		self.debugPreprocessing = True
+		
+		self._lookup_intensity = {}
+		self._lookup_feedrate = {}
 
 	def get_settings_as_comment(self, x,y,w,h, file_id = ''):
 		comment = ";Image: {:.2f}x{:.2f} @ {:.2f},{:.2f}|".format(w,h,x,y) + file_id+"\n"
@@ -247,12 +250,16 @@ class ImageProcessor():
 		return "{0:.2f}".format(fl)
 	
 	def get_intensity(self, brightness):
-		intensity = (1.0 - brightness/255.0) * (self.intensity_black - self.intensity_white) + self.intensity_white
-		return int(intensity)
+		if(not brightness in self._lookup_intensity):
+			intensity = (1.0 - brightness/255.0) * (self.intensity_black - self.intensity_white) + self.intensity_white
+			self._lookup_intensity[brightness] = int(intensity)
+		return self._lookup_intensity[brightness];
 
 	def get_feedrate(self, brightness):
-		feedrate = brightness/255.0 * (self.feedrate_white - self.feedrate_black) + self.feedrate_black
-		return int(feedrate)
+		if(not brightness in self._lookup_feedrate):
+			feedrate = brightness/255.0 * (self.feedrate_white - self.feedrate_black) + self.feedrate_black
+			self._lookup_feedrate[brightness] = feedrate
+		return self._lookup_feedrate[brightness]
 
 	def get_alpha_composition(self, pixel):
 		brightness = pixel[0] # 0..255
@@ -307,12 +314,12 @@ if __name__ == "__main__":
 	(options, args) = opts.parse_args()
 	
 	boolDither = (options.dithering == "true")
-	ip = ImageProcessor(options.feedrate, options.contrast, options.sharpening, options.beam_diameter, 
+	ip = ImageProcessor(options.contrast, options.sharpening, options.beam_diameter, 
 	options.intensity_black, options.intensity_white, options.speed_black, options.speed_white, 
-	boolDither, options.pierce_time, material = "default")
+	boolDither, options.pierce_time)
 	mode = "intensity"
 	path = args[0]
-	gcode = ip.img_to_gcode(path, options.width, options.height, options.x, options.y)
+	gcode = ip.img_to_gcode(path, options.width, options.height, options.x, options.y, path)
 	#gcode = ip.base64_to_gcode(base64img, options.width, options.height, options.x, options.y)
 	
 	header = ""
