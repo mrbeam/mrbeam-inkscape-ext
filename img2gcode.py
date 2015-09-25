@@ -139,8 +139,8 @@ class ImageProcessor():
 		pierce_intensity = 1000
 		direction_positive = True;
 		gcode = self.get_settings_as_comment(x,y,w,h, file_id)
-		gcode += 'G0 X'+self.twodigits(x)+' Y'+self.twodigits(y) + ' S0\n' # move to upper left
-		gcode += 'F ' + str(self.feedrate_white) + '\n' # set an initial feedrate
+		gcode += 'G0X'+self.twodigits(x)+' Y'+self.twodigits(y) + ' S0\n' # move to upper left
+		gcode += 'F' + str(self.feedrate_white) + '\n' # set an initial feedrate
 		gcode += 'M3S0\n' # enable laser
 		
 		(width, height) = img.size
@@ -151,7 +151,7 @@ class ImageProcessor():
 			row_pos_y = y + (height - row) * self.beam # inverse y-coordinate as images have 0x0 at left top, mr beam at left bottom 
 
 			# proceed to next line 
-			nextline = 'G0 Y'+ self.twodigits(row_pos_y)+' S0\n' #; next line # TODO ... skip empty lines
+			nextline = 'G0Y'+ self.twodigits(row_pos_y)+'S0\n' #; next line # TODO ... skip empty lines
 			gcode += nextline
 			
 			# back and forth
@@ -170,12 +170,12 @@ class ImageProcessor():
 							
 						# fast skipping whitespace
 						if(lastBrightness >= 255 and self.intensity_white == 0): 
-							gcode += "G0 X" + self.twodigits(xpos) + " S0\n"  
+							gcode += "G0X" + self.twodigits(xpos) + "S0\n"  
 							
 							#TODO
 							# fixed piercetime
 							if(self.pierce_time > 0):
-								gcode += "S"+str(pierce_intensity)+ "\n" + "G4 P"+str(self.pierce_time)+"\n" # Dwell for P ms
+								gcode += "S"+str(pierce_intensity)+ "\n" + "G4P"+str(self.pierce_time)+"\n" # Dwell for P ms
 							
 							# dynamic piercetime
 							# TODO highly experimental. take line-distance into account.
@@ -189,7 +189,7 @@ class ImageProcessor():
 						else:
 							intensity = self.get_intensity(lastBrightness)
 							feedrate = self.get_feedrate(lastBrightness)
-							gcode += "G1 X" + self.twodigits(xpos) + " F"+str(feedrate) + " S"+str(intensity)+ "\n" # move until next intensity
+							gcode += "G1X" + self.twodigits(xpos) + "F"+str(feedrate) + "S"+str(intensity)+ "\n" # move until next intensity
 													
 				else:
 					pass # combine equal intensity values to one move
@@ -202,7 +202,7 @@ class ImageProcessor():
 				end_of_line = x + pixelrange[-1] * self.beam 
 				intensity = self.get_intensity(brightness)
 				feedrate = self.get_feedrate(brightness)
-				gcode += "G1 X" + self.twodigits(end_of_line) + " F"+str(feedrate) + " S"+str(intensity)+ "\n" # finish line
+				gcode += "G1X" + self.twodigits(end_of_line) + "F"+str(feedrate) + "S"+str(intensity)+ "\n" # finish line
 
 			# flip direction after each line to go back and forth
 			direction_positive = not direction_positive
@@ -329,15 +329,15 @@ if __name__ == "__main__":
 $H
 G92X0Y0Z0
 G90
-M08
+M8
 G21
-G0
+
 '''
 		footer = '''
-M05S0
-G0 X0.000 Y0.000
-M09
-M02
+M5S0
+G0X0Y0
+M9
+M2
 '''
 
 	if(len(args) == 2):
