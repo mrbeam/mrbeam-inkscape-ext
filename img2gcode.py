@@ -258,7 +258,7 @@ class ImageProcessor():
 	def get_feedrate(self, brightness):
 		if(not brightness in self._lookup_feedrate):
 			feedrate = brightness/255.0 * (self.feedrate_white - self.feedrate_black) + self.feedrate_black
-			self._lookup_feedrate[brightness] = feedrate
+			self._lookup_feedrate[brightness] = int(feedrate)
 		return self._lookup_feedrate[brightness]
 
 	def get_alpha_composition(self, pixel):
