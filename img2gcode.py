@@ -46,6 +46,9 @@ class ImageProcessor():
 		
 		self.debugPreprocessing = False
 		self.debugPreprocessing = True
+		
+		self._lookup_intensity = {}
+		self._lookup_feedrate = {}
 
 	def get_settings_as_comment(self, x,y,w,h, file_id = ''):
 		comment = ";Image: {:.2f}x{:.2f} @ {:.2f},{:.2f}|".format(w,h,x,y) + file_id+"\n"
@@ -136,8 +139,8 @@ class ImageProcessor():
 		pierce_intensity = 1000
 		direction_positive = True;
 		gcode = self.get_settings_as_comment(x,y,w,h, file_id)
-		gcode += 'G0 X'+self.twodigits(x)+' Y'+self.twodigits(y) + ' S0\n' # move to upper left
-		gcode += 'F ' + str(self.feedrate_white) + '\n' # set an initial feedrate
+		gcode += 'G0X'+self.twodigits(x)+' Y'+self.twodigits(y) + ' S0\n' # move to upper left
+		gcode += 'F' + str(self.feedrate_white) + '\n' # set an initial feedrate
 		gcode += 'M3S0\n' # enable laser
 		
 		(width, height) = img.size
@@ -148,7 +151,7 @@ class ImageProcessor():
 			row_pos_y = y + (height - row) * self.beam # inverse y-coordinate as images have 0x0 at left top, mr beam at left bottom 
 
 			# proceed to next line 
-			nextline = 'G0 Y'+ self.twodigits(row_pos_y)+' S0\n' #; next line # TODO ... skip empty lines
+			nextline = 'G0Y'+ self.twodigits(row_pos_y)+'S0\n' #; next line # TODO ... skip empty lines
 			gcode += nextline
 			
 			# back and forth
@@ -167,12 +170,12 @@ class ImageProcessor():
 							
 						# fast skipping whitespace
 						if(lastBrightness >= 255 and self.intensity_white == 0): 
-							gcode += "G0 X" + self.twodigits(xpos) + " S0\n"  
+							gcode += "G0X" + self.twodigits(xpos) + "S0\n"  
 							
 							#TODO
 							# fixed piercetime
 							if(self.pierce_time > 0):
-								gcode += "S"+str(pierce_intensity)+ "\n" + "G4 P"+str(self.pierce_time)+"\n" # Dwell for P ms
+								gcode += "S"+str(pierce_intensity)+ "\n" + "G4P"+str(self.pierce_time)+"\n" # Dwell for P ms
 							
 							# dynamic piercetime
 							# TODO highly experimental. take line-distance into account.
@@ -186,7 +189,7 @@ class ImageProcessor():
 						else:
 							intensity = self.get_intensity(lastBrightness)
 							feedrate = self.get_feedrate(lastBrightness)
-							gcode += "G1 X" + self.twodigits(xpos) + " F"+str(feedrate) + " S"+str(intensity)+ "\n" # move until next intensity
+							gcode += "G1X" + self.twodigits(xpos) + "F"+str(feedrate) + "S"+str(intensity)+ "\n" # move until next intensity
 													
 				else:
 					pass # combine equal intensity values to one move
@@ -199,7 +202,7 @@ class ImageProcessor():
 				end_of_line = x + pixelrange[-1] * self.beam 
 				intensity = self.get_intensity(brightness)
 				feedrate = self.get_feedrate(brightness)
-				gcode += "G1 X" + self.twodigits(end_of_line) + " F"+str(feedrate) + " S"+str(intensity)+ "\n" # finish line
+				gcode += "G1X" + self.twodigits(end_of_line) + "F"+str(feedrate) + "S"+str(intensity)+ "\n" # finish line
 
 			# flip direction after each line to go back and forth
 			direction_positive = not direction_positive
@@ -247,12 +250,16 @@ class ImageProcessor():
 		return "{0:.2f}".format(fl)
 	
 	def get_intensity(self, brightness):
-		intensity = (1.0 - brightness/255.0) * (self.intensity_black - self.intensity_white) + self.intensity_white
-		return int(intensity)
+		if(not brightness in self._lookup_intensity):
+			intensity = (1.0 - brightness/255.0) * (self.intensity_black - self.intensity_white) + self.intensity_white
+			self._lookup_intensity[brightness] = int(intensity)
+		return self._lookup_intensity[brightness];
 
 	def get_feedrate(self, brightness):
-		feedrate = brightness/255.0 * (self.feedrate_white - self.feedrate_black) + self.feedrate_black
-		return int(feedrate)
+		if(not brightness in self._lookup_feedrate):
+			feedrate = brightness/255.0 * (self.feedrate_white - self.feedrate_black) + self.feedrate_black
+			self._lookup_feedrate[brightness] = int(feedrate)
+		return self._lookup_feedrate[brightness]
 
 	def get_alpha_composition(self, pixel):
 		brightness = pixel[0] # 0..255
@@ -307,12 +314,12 @@ if __name__ == "__main__":
 	(options, args) = opts.parse_args()
 	
 	boolDither = (options.dithering == "true")
-	ip = ImageProcessor(options.feedrate, options.contrast, options.sharpening, options.beam_diameter, 
+	ip = ImageProcessor(options.contrast, options.sharpening, options.beam_diameter, 
 	options.intensity_black, options.intensity_white, options.speed_black, options.speed_white, 
-	boolDither, options.pierce_time, material = "default")
+	boolDither, options.pierce_time)
 	mode = "intensity"
 	path = args[0]
-	gcode = ip.img_to_gcode(path, options.width, options.height, options.x, options.y)
+	gcode = ip.img_to_gcode(path, options.width, options.height, options.x, options.y, path)
 	#gcode = ip.base64_to_gcode(base64img, options.width, options.height, options.x, options.y)
 	
 	header = ""
@@ -322,15 +329,15 @@ if __name__ == "__main__":
 $H
 G92X0Y0Z0
 G90
-M08
+M8
 G21
-G0
+
 '''
 		footer = '''
-M05S0
-G0 X0.000 Y0.000
-M09
-M02
+M5S0
+G0X0Y0
+M9
+M2
 '''
 
 	if(len(args) == 2):
