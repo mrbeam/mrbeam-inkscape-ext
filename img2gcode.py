@@ -210,15 +210,16 @@ class ImageProcessor():
 		gcode += ";EndImage\n"	
 		return gcode
 
-	def base64_to_gcode(self, base64str, w,h, x,y, file_id):
-		if(base64str is None):
+	def dataUrl_to_gcode(self, dataUrl, w,h, x,y, file_id):
+		if(dataUrl is None):
 			print("ERROR: image is not base64 encoded")
 			return ""; 
 		
+		# get raw base64 data
 		# remove "data:image/png;base64," and add a "\n" in front to get proper base64 encoding
-		if(base64str.startswith("data:")):
-			commaidx = base64str.find(',')
-			base64str = "\n" + base64str[commaidx:]
+		if(dataUrl.startswith("data:")):
+			commaidx = dataUrl.find(',')
+			base64str = "\n" + dataUrl[commaidx:]
 		
 #		fh = open("debug.png", "wb")
 #		fh.write(base64str.decode('base64'))
@@ -228,7 +229,7 @@ class ImageProcessor():
 		img = Image.open(image_string)
 
 		pixArray = self.img_prepare(img, w, h)
-		gcode = self.generate_gcode(pixArray, x, y, w, h, file_id)
+		gcode = self.generate_gcode(pixArray, x, y, w, h, dataUrl)
 		return gcode
 	
 	def imgurl_to_gcode(self, url, w,h, x,y, file_id):
@@ -320,7 +321,7 @@ if __name__ == "__main__":
 	mode = "intensity"
 	path = args[0]
 	gcode = ip.img_to_gcode(path, options.width, options.height, options.x, options.y, path)
-	#gcode = ip.base64_to_gcode(base64img, options.width, options.height, options.x, options.y)
+	#gcode = ip.dataUrl_to_gcode(base64img, options.width, options.height, options.x, options.y)
 	
 	header = ""
 	footer = ""
