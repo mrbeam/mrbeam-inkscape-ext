@@ -36,6 +36,7 @@ class ImageProcessor():
 		self.beam = beam_diameter
 		self.pierce_time = pierce_time/1000.0
 		self.pierce_intensity = 1000 # TODO parametrize
+		self.ignore_brighter_than = 254 # TODO parametrize
 		self.intensity_black = intensity_black
 		self.intensity_white = intensity_white
 		self.feedrate_white = speed_white
@@ -152,7 +153,7 @@ class ImageProcessor():
 			# back and forth
 			pixelrange = range(0, width) if(direction_positive) else range(width-1, -1, -1)
 
-			lastBrightness = 256
+			lastBrightness = self.ignore_brighter_than + 1 
 			for i in pixelrange:
 				px = pix[i, row]
 				#brightness = self.get_alpha_composition(px)
@@ -166,7 +167,7 @@ class ImageProcessor():
 				
 				lastBrightness = brightness
 
-			if(brightness < 255 or self.intensity_white > 0): # finish non-white line
+			if(brightness <= self.ignore_brighter_than or self.intensity_white > 0): # finish non-white line
 				end_of_line = x + pixelrange[-1] * self.beam 
 				gcode += self.get_gcode_for_equal_pixels(brightness, end_of_line, row_pos_y)
 
@@ -178,7 +179,7 @@ class ImageProcessor():
 	
 	def get_gcode_for_equal_pixels(self, brightness, target_x, target_y, comment=""):
 		# fast skipping whitespace
-		if(brightness >= 255 and self.intensity_white == 0): 
+		if(brightness > self.ignore_brighter_than and self.intensity_white == 0): 
 			gcode = "G0X" + self.twodigits(target_x) +"Y" + self.twodigits(target_y) + "S0" + comment +"\n"  
 
 			# fixed piercetime
