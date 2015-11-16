@@ -137,11 +137,12 @@ class ImageProcessor():
 		return img
 
 	def generate_gcode(self, img, x,y,w,h, file_id):
-		print("img2gcode conversion started: \n", self.get_settings_as_comment(x,y,w,h, file_id))
-		direction_positive = True;
+		print("img2gcode conversion started: \n", self.get_settings_as_comment(x,y,w,h, ""))
+		direction_positive = True
 		gcode = self.get_settings_as_comment(x,y,w,h, file_id)
 		gcode += 'F' + str(self.feedrate_white) + '\n' # set an initial feedrate
 		gcode += 'M3S0\n' # enable laser
+		last_y = -1
 		
 		(width, height) = img.size
 		
@@ -161,26 +162,29 @@ class ImageProcessor():
 				if(brightness != lastBrightness ):
 					if(i != pixelrange[0]): # don't move after new line
 						xpos = x + self.beam * (i-1 if (direction_positive) else (i)) # calculate position; backward lines need to be shifted by +1 beam diameter
-						gcode += self.get_gcode_for_equal_pixels(lastBrightness, xpos, row_pos_y)			
+						gcode += self.get_gcode_for_equal_pixels(lastBrightness, xpos, row_pos_y, last_y)
+						last_y = row_pos_y
 				else:
 					pass # combine equal intensity values to one move
 				
 				lastBrightness = brightness
 
-			if(brightness <= self.ignore_brighter_than or self.intensity_white > 0): # finish non-white line
+			if(brightness <= self.ignore_brighter_than and self.get_intensity(brightness) > 0): # finish non-white line
 				end_of_line = x + pixelrange[-1] * self.beam 
-				gcode += self.get_gcode_for_equal_pixels(brightness, end_of_line, row_pos_y)
+				gcode += self.get_gcode_for_equal_pixels(brightness, end_of_line, row_pos_y, last_y)
+				last_y = row_pos_y
 
 			# flip direction after each line to go back and forth
 			direction_positive = not direction_positive
 			
 		gcode += ";EndImage\n" # important for gcode preview!
 		return gcode
-	
-	def get_gcode_for_equal_pixels(self, brightness, target_x, target_y, comment=""):
+
+	def get_gcode_for_equal_pixels(self, brightness, target_x, target_y, last_y, comment=""):
 		# fast skipping whitespace
-		if(brightness > self.ignore_brighter_than and self.intensity_white == 0): 
-			gcode = "G0X" + self.twodigits(target_x) +"Y" + self.twodigits(target_y) + "S0" + comment +"\n"  
+		if(brightness > self.ignore_brighter_than ): 
+			y_gcode = "Y"+self.twodigits(target_y) if target_y != last_y else "" 
+			gcode = "G0X" + self.twodigits(target_x) + y_gcode + "S0" + comment +"\n"  
 
 			# fixed piercetime
 			if(self.pierce_time > 0):
@@ -198,11 +202,19 @@ class ImageProcessor():
 		else:
 			intensity = self.get_intensity(brightness)
 			feedrate = self.get_feedrate(brightness)
-			gcode = "G1X" + self.twodigits(target_x) + "F"+str(feedrate) + "S"+str(intensity)+ comment +"\n" # move until next intensity
+			gcode = "G0Y"+self.twodigits(target_y)+"S0\n" if target_y != last_y else "" 
+			gcode += "G1X" + self.twodigits(target_x) + "F"+str(feedrate) + "S"+str(intensity)+ comment +"\n" # move until next intensity
 									
 		return gcode;
 
 	def dataUrl_to_gcode(self, dataUrl, w,h, x,y, file_id):
+		img = self._dataurl_to_img(dataUrl)
+
+		pixArray = self.img_prepare(img, w, h)
+		gcode = self.generate_gcode(pixArray, x, y, w, h, dataUrl)
+		return gcode
+	
+	def _dataurl_to_img(self, dataUrl):
 		if(dataUrl is None):
 			print("ERROR: image is not base64 encoded")
 			return ""; 
@@ -213,16 +225,9 @@ class ImageProcessor():
 			commaidx = dataUrl.find(',')
 			base64str = "\n" + dataUrl[commaidx:]
 		
-#		fh = open("debug.png", "wb")
-#		fh.write(base64str.decode('base64'))
-#		fh.close()
-		
 		image_string = cStringIO.StringIO(base64.b64decode(base64str))
-		img = Image.open(image_string)
-
-		pixArray = self.img_prepare(img, w, h)
-		gcode = self.generate_gcode(pixArray, x, y, w, h, dataUrl)
-		return gcode
+		return Image.open(image_string)
+		
 	
 	def imgurl_to_gcode(self, url, w,h, x,y, file_id):
 		import urllib, cStringIO
