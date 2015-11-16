@@ -3326,7 +3326,7 @@ class Laserengraver(inkex.Effect):
 						
 					gcode = ''
 					if(data.startswith("data:")):
-						gcode = ip.base64_to_gcode(data, w, h, upperLeft[0], lowerRight[1], file_id)
+						gcode = ip.dataUrl_to_gcode(data, w, h, upperLeft[0], lowerRight[1], file_id)
 					elif(data.startswith("http://")):
 						gcode = ip.imgurl_to_gcode(data, w, h, upperLeft[0], lowerRight[1], file_id)
 					else:

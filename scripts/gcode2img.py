@@ -1,7 +1,3 @@
-# To change this license header, choose License Headers in Project Properties.
-# To change this template file, choose Tools | Templates
-# and open the template in the editor.
-
 __author__ = "teja"
 __date__ = "$Aug 9, 2015 9:42:03 AM$"
 
@@ -19,6 +15,7 @@ def debug_image(gcode, pixelsize):
 	fmin = sys.maxint
 	fmax = -sys.maxint
 	regex = re.compile("((?P<letter>[GFSMXYZPIJK])\s*(?P<value>[0-9-.]+))")
+	pixelsize_regex = re.compile(";self.beam = (?P<value>[0-9-.]+)")
 
 	x = 0
 	y = 0
@@ -28,6 +25,18 @@ def debug_image(gcode, pixelsize):
 	ltr = True
 	pix = []
 	for line in lines:
+		# ;self.beam = 0.20
+		if(line.startswith(';')): 
+			if(line.startswith(';self.beam = ')):
+				m = pixelsize_regex.match(line);
+				if(m.groupdict()['value']):
+					pixelsize = float(m.groupdict()['value'])
+					print('found pixel size in comment:', pixelsize)
+		
+		idx = line.find(';')
+		if(idx >= 0):
+			line = line[:idx]
+		
 		#matches = regex.findall(line)
 		for d in [matches.groupdict() for matches in regex.finditer(line)]:
 
@@ -72,9 +81,8 @@ def debug_image(gcode, pixelsize):
 	for line in pix:
 		if(line['g'] == '1' or line['g'] == '0'):
 			x = int((line['x']-xmin) * 1/pixelsize)
-			if(not line['ltr']):
-				x = x+1
-			y = h-1 - (line['y'] - ymin) * 1/pixelsize
+			y = int(round(h-1 - (line['y'] - ymin) * 1/pixelsize))
+			print('y',y)
 			if(line['g'] == '1'):
 				#s = int((1-line['s'] / 1000.0) * 255) # intensity (0-1000) to luminance conversion
 				#f = (line['f'] * f_factor) * 255
