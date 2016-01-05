@@ -2900,8 +2900,8 @@ class Laserengraver(inkex.Effect):
 						# fourth side implicitly
 
 						# Create a path with the outline of the rectangle
-						x = float( i.get( 'x' ) )
-						y = float( i.get( 'y' ) )
+						x = float( i.get( 'x','0' ) )
+						y = float( i.get( 'y','0' ) )
 						if ( not x ) or ( not y ):
 							pass
 						w = float( i.get( 'width', '0' ) )
