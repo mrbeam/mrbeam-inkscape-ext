@@ -177,7 +177,7 @@ class ImageProcessor():
 			# flip direction after each line to go back and forth
 			direction_positive = not direction_positive
 			
-		gcode += ";EndImage\n" # important for gcode preview!
+		gcode += ";EndImage\nM5\n" # important for gcode preview!
 		return gcode
 
 	def get_gcode_for_equal_pixels(self, brightness, target_x, target_y, last_y, comment=""):
@@ -332,7 +332,7 @@ G21
 
 '''
 		footer = '''
-M5S0
+M5
 G0X0Y0
 M9
 M2
