@@ -75,6 +75,8 @@ class ImageProcessor():
 		return img
 
 	def generate_gcode(self, img, x,y):
+		x += self.beam/2
+		y -= self.beam/2
 		direction_positive = True;
 		gcode = 'G0 X'+self.twodigits(x)+' Y'+self.twodigits(y) + '\nF ' + str(self.feedrate) + '\n' # move to img start & set feedrate
 		
