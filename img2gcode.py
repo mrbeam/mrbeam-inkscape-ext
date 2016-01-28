@@ -138,6 +138,8 @@ class ImageProcessor():
 
 	def generate_gcode(self, img, x,y,w,h, file_id):
 		print("img2gcode conversion started: \n", self.get_settings_as_comment(x,y,w,h, ""))
+		x += self.beam/2.0
+		y -= self.beam/2.0
 		direction_positive = True
 		gcode = self.get_settings_as_comment(x,y,w,h, file_id)
 		gcode += 'F' + str(self.feedrate_white) + '\n' # set an initial feedrate
