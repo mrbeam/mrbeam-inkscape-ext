@@ -150,7 +150,7 @@ class ImageProcessor():
 		
 		# iterate line by line
 		pix = img.load()
-		for row in range(0,height):
+		for row in range(height-1,-1,-1):
 			row_pos_y = y + (height - row) * self.beam # inverse y-coordinate as images have 0x0 at left top, mr beam at left bottom 
 			
 			# back and forth
