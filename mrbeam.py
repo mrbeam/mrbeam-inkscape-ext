@@ -3006,8 +3006,16 @@ class Laserengraver(inkex.Effect):
 
 					# image
 					elif i.tag == inkex.addNS('image','svg'):
-						print_("added image " + i.get("width") + 'x' + i.get("height") + "@" + i.get("x")+","+i.get("y"))
+						x = i.get('x')
+						y = i.get('y')						
+						if x == None:
+							x = "0"
+						if y == None:
+							y = "0"
+					
+						print_("added image " + i.get("width") + 'x' + i.get("height") + "@" + x+","+y)
 						self.handle_image(i, layer)
+						
 					
 					# group
 					elif i.tag == inkex.addNS("g",'svg'):
@@ -3264,10 +3272,17 @@ class Laserengraver(inkex.Effect):
 			if layer in self.images :
 				for imgNode in self.images[layer] :
 					file_id = imgNode.get('data-serveurl', '')
+					x = imgNode.get('x')
+					y = imgNode.get('y')						
+					if x == None:
+						x = "0"
+					if y == None:
+						y = "0"
+
 					
 					# pt units
-					x = float(imgNode.get("x"))
-					y = float(imgNode.get("y"))
+					x = float(x)
+					y = float(y)
 					w = float(imgNode.get("width"))
 					h = float(imgNode.get("height"))
 
