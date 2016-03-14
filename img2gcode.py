@@ -25,19 +25,47 @@ from PIL import Image
 from PIL import ImageEnhance
 import base64
 import cStringIO
+import os.path
 
 class ImageProcessor():
 
-	def __init__( self , feedrate = 500, contrast = 1.0, sharpening = 1.0, beam_diameter = 0.25, intensity_black = 1000, intensity_white = 0, material = "default"):
+	def __init__( self, contrast = 1.0, sharpening = 1.0, beam_diameter = 0.25, 
+	intensity_black = 500, intensity_white = 0, speed_black = 500, speed_white = 3000, 
+	dithering = False, pierce_time = 0, material = "default"):
 		
 		self.beam = beam_diameter
+		self.pierce_time = pierce_time/1000.0
+		self.pierce_intensity = 1000 # TODO parametrize
+		self.ignore_brighter_than = 254 # TODO parametrize
 		self.intensity_black = intensity_black
 		self.intensity_white = intensity_white
+		self.feedrate_white = speed_white
+		self.feedrate_black = speed_black
 		self.material = material
-		self.feedrate = feedrate
 		self.contrastFactor = contrast
 		self.sharpeningFactor = sharpening
+		self.dithering = (dithering == True or dithering == "True")
+		
+		self.debugPreprocessing = False
+		self.debugPreprocessing = True
+		
+		self._lookup_intensity = {}
+		self._lookup_feedrate = {}
 
+	def get_settings_as_comment(self, x,y,w,h, file_id = ''):
+		comment = ";Image: {:.2f}x{:.2f} @ {:.2f},{:.2f}|".format(w,h,x,y) + file_id+"\n"
+		comment += ";self.beam = {:.2f}".format(self.beam) + "\n"
+		comment += ";pierce_time = {:.3f}s".format(self.pierce_time) + "\n"
+		comment += ";intensity_black = {:.2f}".format(self.intensity_black) + "\n"
+		comment += ";intensity_white = {:.2f}".format(self.intensity_white) + "\n"
+		comment += ";feedrate_white = {:.2f}".format(self.feedrate_white) + "\n"
+		comment += ";feedrate_black = {:.2f}".format(self.feedrate_black) + "\n"
+
+		comment += ";material = " + self.material + "\n"
+		comment += ";contrastFactor = {:.2f}".format(self.contrastFactor) + "\n"
+		comment += ";sharpeningFactor = {:.2f}".format(self.sharpeningFactor) + "\n"
+		comment += ";dithering = " + str(self.dithering) + "\n"
+		return comment
 
 	def img_prepare(self, orig_img, w,h):
 		"""
@@ -45,119 +73,220 @@ class ImageProcessor():
 		2.greyscale
 		3.contrast / curves (material)
 		"""
-
+		
+		if(h < 0): 
+			ratio = (orig_img.size[1]/float(orig_img.size[0]))
+			h = w * ratio
+		
 		dest_wpx = int(w/self.beam)
 		dest_hpx = int(h/self.beam)
+		
+		print("scaling to {}x{}".format(dest_wpx, dest_hpx))
 
 		# scale
-		img = orig_img.resize((dest_wpx, dest_hpx), Image.ANTIALIAS)
+		img = orig_img.resize((dest_wpx, dest_hpx))
+		#img = orig_img.resize((dest_wpx, dest_hpx), Image.ANTIALIAS)
+
+		if(self.debugPreprocessing):
+			img.save("/tmp/img2gcode_1_resized.png")
+
+		# remove transparency
+		if(img.mode == 'RGBA'):
+			whitebg = Image.new('RGBA', (dest_wpx, dest_hpx), "white")
+			img = Image.alpha_composite(whitebg, img)
+
+		if(self.debugPreprocessing):
+			img.save("/tmp/img2gcode_2_whitebg.png")
+
 
 		# mirror?
 		#img = img.transpose(Image.FLIP_LEFT_RIGHT)
 
+		# contrast 
+		if(self.dithering == False and self.contrastFactor > 1.0):
+			contrast = ImageEnhance.Contrast(img)
+			img = contrast.enhance(self.contrastFactor) # 1.0 returns original
+			if(self.debugPreprocessing):
+				img.save("/tmp/img2gcode_3_contrast.png")
+		
 		# greyscale
 		img = img.convert('L') 
-		
-		# contrast 
-		contrast = ImageEnhance.Contrast(img)
-		img = contrast.enhance(self.contrastFactor) # 1.0 returns original
-		
-		# sharpness
-		sharpness = ImageEnhance.Sharpness(img)
-		img = sharpness.enhance(self.sharpeningFactor) # 1.0 returns original
+		if(self.debugPreprocessing):
+			img.save("/tmp/img2gcode_4_greyscale.png")
 
 		# curves depending on material
 		if(self.material != "default") :
 			# TODO
 			pass
+		
+		# sharpness (factor: 1 => unchanged , 25 => almost b/w)
+		if(self.dithering == False and self.sharpeningFactor > 1.0):
+			sharpness = ImageEnhance.Sharpness(img)
+			img = sharpness.enhance(self.sharpeningFactor)
+			if(self.debugPreprocessing):
+				img.save("/tmp/img2gcode_5_sharpened.png")
+		
+		# dithering
+		if(self.dithering == True):
+			img = img.convert('1') 
+			if(self.debugPreprocessing):
+				img.save("/tmp/img2gcode_6_dithered.png")
+		
 
 		# return pixel array
 		return img
 
-	def generate_gcode(self, img, x,y):
+	def generate_gcode(self, img, x,y,w,h, file_id):
+		print("img2gcode conversion started: \n", self.get_settings_as_comment(x,y,w,h, ""))
 		x += self.beam/2.0
 		y -= self.beam/2.0
-		direction_positive = True;
-		gcode = 'G0 X'+self.twodigits(x)+' Y'+self.twodigits(y) + '\nF ' + str(self.feedrate) + '\n' # move to img start & set feedrate
+		direction_positive = True
+		gcode = self.get_settings_as_comment(x,y,w,h, file_id)
+		gcode += 'F' + str(self.feedrate_white) + '\n' # set an initial feedrate
+		gcode += 'M3S0\n' # enable laser
+		last_y = -1
 		
 		(width, height) = img.size
 		
 		# iterate line by line
 		pix = img.load()
-		for row in range(0,height):
+		for row in range(height-1,-1,-1):
 			row_pos_y = y + (height - row) * self.beam # inverse y-coordinate as images have 0x0 at left top, mr beam at left bottom 
-
-			# proceed to next line 
-			nextline = 'G0 Y'+ self.twodigits(row_pos_y)+'; next line\n' # TODO ... skip empty lines
-			
 			
 			# back and forth
 			pixelrange = range(0, width) if(direction_positive) else range(width-1, -1, -1)
 
-			lastInt = 0
-			nextlineNecessary = True
+			lastBrightness = self.ignore_brighter_than + 1 
 			for i in pixelrange:
 				px = pix[i, row]
-				intensity = self.get_intensity(px)
-
-				if(intensity != lastInt ):
+				#brightness = self.get_alpha_composition(px)
+				brightness = px
+				if(brightness != lastBrightness ):
 					if(i != pixelrange[0]): # don't move after new line
-						if(nextlineNecessary):
-							gcode += nextline
-							nextlineNecessary = False
-							
-						xpos = x + self.beam * (i if (direction_positive) else (i+1)) # calculate position; backward lines need to be shifted by +1 beam diameter
-						if(lastInt <= 0): gcode += "G0 X" + self.twodigits(xpos) + "\n" # fast skipping whitespace 
-						else: gcode += "G1 X" + self.twodigits(xpos) + "\n" # move until next intensity
-						
-					gcode += "M3S" + str(intensity) + "\n" # set new intensity
+						xpos = x + self.beam * (i-1 if (direction_positive) else (i)) # calculate position; backward lines need to be shifted by +1 beam diameter
+						gcode += self.get_gcode_for_equal_pixels(lastBrightness, xpos, row_pos_y, last_y)
+						last_y = row_pos_y
 				else:
 					pass # combine equal intensity values to one move
-					
-				lastInt = intensity
-			
-			if(lastInt > 0):
+				
+				lastBrightness = brightness
+
+			if(brightness <= self.ignore_brighter_than and self.get_intensity(brightness) > 0): # finish non-white line
 				end_of_line = x + pixelrange[-1] * self.beam 
-				gcode += "G1 X" + self.twodigits(end_of_line) + "\n" # finish non-white line
-			
-			if(nextlineNecessary == False):
-				gcode += "M3S0\n\n" # end of pixel line
+				gcode += self.get_gcode_for_equal_pixels(brightness, end_of_line, row_pos_y, last_y)
+				last_y = row_pos_y
+
+			# flip direction after each line to go back and forth
 			direction_positive = not direction_positive
 			
+		gcode += ";EndImage\nM5\n" # important for gcode preview!
 		return gcode
 
-		
+	def get_gcode_for_equal_pixels(self, brightness, target_x, target_y, last_y, comment=""):
+		# fast skipping whitespace
+		if(brightness > self.ignore_brighter_than ): 
+			y_gcode = "Y"+self.twodigits(target_y) if target_y != last_y else "" 
+			gcode = "G0X" + self.twodigits(target_x) + y_gcode + "S0" + comment +"\n"  
 
-	def base64_to_gcode(self, base64str, w,h, x,y):
-		
-		# remove "data:image/png;base64," and add a "\n" in front to get proper base64 encoding
-		if(base64str.startswith("data:")):
-			commaidx = base64str.find(',')
-			base64str = "\n" + base64str[commaidx:]
-		
-#		fh = open("debug.png", "wb")
-#		fh.write(base64str.decode('base64'))
-#		fh.close()
-		
-		image_string = cStringIO.StringIO(base64.b64decode(base64str))
-		img = Image.open(image_string)
+			# fixed piercetime
+			if(self.pierce_time > 0):
+				gcode += "M3S"+str(self.pierce_intensity)+ "\n" + "G4P"+str(self.pierce_time)+"\n" # Dwell for P ms
+
+			# dynamic piercetime
+			# TODO highly experimental. take line-distance into account.
+#			if(self.pierce_time > 0):
+#				mult = self.get_pierce_time_multiplier(i, row, pix, width, height, direction_positive) # 0.0 .. 1.0
+#				pt = mult * self.pierce_time
+#				if(pt > 0):
+#					pt_str = "{0:.3f}".format(pt)
+#					gcode += "S"+str(pierce_intensity)+ "\n" + "G4 P"+pt_str+"\n" # Dwell for P ms
+
+		else:
+			intensity = self.get_intensity(brightness)
+			feedrate = self.get_feedrate(brightness)
+			gcode = "G0Y"+self.twodigits(target_y)+"S0\n" if target_y != last_y else "" 
+			gcode += "G1X" + self.twodigits(target_x) + "F"+str(feedrate) + "S"+str(intensity)+ comment +"\n" # move until next intensity
+									
+		return gcode;
+
+	def dataUrl_to_gcode(self, dataUrl, w,h, x,y, file_id):
+		img = self._dataurl_to_img(dataUrl)
 
 		pixArray = self.img_prepare(img, w, h)
-		gcode = self.generate_gcode(pixArray, x, y, )
+		gcode = self.generate_gcode(pixArray, x, y, w, h, dataUrl)
 		return gcode
 	
-	def img_to_gcode(self, path, w,h, x,y):
+	def _dataurl_to_img(self, dataUrl):
+		if(dataUrl is None):
+			print("ERROR: image is not base64 encoded")
+			return ""; 
+		
+		# get raw base64 data
+		# remove "data:image/png;base64," and add a "\n" in front to get proper base64 encoding
+		if(dataUrl.startswith("data:")):
+			commaidx = dataUrl.find(',')
+			base64str = "\n" + dataUrl[commaidx:]
+		
+		image_string = cStringIO.StringIO(base64.b64decode(base64str))
+		return Image.open(image_string)
+		
+	
+	def imgurl_to_gcode(self, url, w,h, x,y, file_id):
+		import urllib, cStringIO
+		file = cStringIO.StringIO(urllib.urlopen(url).read())
+		img = Image.open(file)
+		pixArray = self.img_prepare(img, w, h)
+		gcode = self.generate_gcode(pixArray, x, y, w, h, file_id)
+		return gcode
+	
+	# x,y are the lowerLeft of the image
+	def img_to_gcode(self, path, w,h, x,y, file_id):
 		img = Image.open(path)
 		pixArray = self.img_prepare(img, w, h)
-		gcode = self.generate_gcode(pixArray, x, y, )
+		gcode = self.generate_gcode(pixArray, x, y, w, h, file_id)
 		return gcode
 	
 	def twodigits(self, fl):
 		return "{0:.2f}".format(fl)
 	
-	def get_intensity(self, pixel):
-		intensity = (1.0 - pixel/255.0) * (self.intensity_black - self.intensity_white) + self.intensity_white
-		return int(intensity)
+	def get_intensity(self, brightness):
+		if(not brightness in self._lookup_intensity):
+			intensity = (1.0 - brightness/255.0) * (self.intensity_black - self.intensity_white) + self.intensity_white
+			self._lookup_intensity[brightness] = int(intensity)
+		return self._lookup_intensity[brightness];
+
+	def get_feedrate(self, brightness):
+		if(not brightness in self._lookup_feedrate):
+			feedrate = brightness/255.0 * (self.feedrate_white - self.feedrate_black) + self.feedrate_black
+			self._lookup_feedrate[brightness] = int(feedrate)
+		return self._lookup_feedrate[brightness]
+
+	def get_alpha_composition(self, pixel):
+		brightness = pixel[0] # 0..255
+		opacity = pixel[1] # 0..255
+		composite = brightness*(opacity/255.0) + 255*(1 - opacity/255.0) # Cout = ColorA*AlphaA + White*(1-AlphaA)
+		return composite
+	
+	def get_pierce_time_multiplier(self, col, row, pix, w, h, direction_positive):
+		col_min = max(0, col-1)
+		col_max = min(col+1, w-1)+1
+		row_min = max(0, row-1)
+		row_max = min(row+1, h-1)+1
+		
+		sum = 0
+		pixels = 0
+		for r in range(row_min, row_max):
+			for c in range(col_min, col_max):
+				if(c != col or r != row):
+					pixels += 1
+					sum += pix[c, r]
+		val = sum/255.0/pixels
+		if val > 0.5: # more than 50% of pixels around are white
+			return val
+		else: 
+			return 0
+		
+		
 
 
 # debug string
@@ -169,21 +298,29 @@ if __name__ == "__main__":
 	opts.add_option("-x",   "--x-position", type="float", default="0", help="x position of the image on the working area", dest="x")
 	opts.add_option("-y",   "--y-position", type="float", default="0", help="y position of the image on the working area", dest="y")
 	opts.add_option("-w",   "--width", type="float", default=100, help="width of the image in mm", dest="width")
-	opts.add_option("",   "--height", type="float", default=100, help="height of the image in mm", dest="height")
-	opts.add_option("-d", "--beam_diameter", type="float", help="laser beam diameter, default 0.25mm", default=0.25, dest="beam_diameter")
+	opts.add_option("",   "--height", type="float", default=-1, help="height of the image in mm. If omitted aspect ratio will be preserved.", dest="height")
+	opts.add_option("", "--beam-diameter", type="float", help="laser beam diameter, default 0.25mm", default=0.25, dest="beam_diameter")
 	opts.add_option("-s", "--speed", type="float", help="engraving speed, default 1000mm/min", default=1000, dest="feedrate")
-	opts.add_option("",   "--intensity-white", type="int", default="0", help="intensity for white pixels, default 0", dest="intensity_white")
-	opts.add_option("",   "--intensity-black", type="int", default="1000", help="intensity for black pixels, default 1000", dest="intensity_black")
+	opts.add_option("",   "--img-intensity-white", type="int", default="0", help="intensity for white pixels, default 0", dest="intensity_white")
+	opts.add_option("",   "--img-intensity-black", type="int", default="1000", help="intensity for black pixels, default 1000", dest="intensity_black")
+	opts.add_option("",   "--img-speed-white", type="int", default="500", help="speed for white pixels, default 500", dest="speed_white")
+	opts.add_option("",   "--img-speed-black", type="int", default="30", help="speed for black pixels, default 30", dest="speed_black")
+	opts.add_option("-t", "--pierce-time", type="float", default="0", help="time to rest after laser is switched on in milliseconds", dest="pierce_time")
 	opts.add_option("-c", "--contrast", type="float", help="contrast adjustment: 0.0 => gray, 1.0 => unchanged, >1.0 => intensified", default=1.0, dest="contrast")
 	opts.add_option("", "--sharpening", type="float", help="image sharpening: 0.0 => blurred, 1.0 => unchanged, >1.0 => sharpened", default=1.0, dest="sharpening")
+	opts.add_option("", "--dithering", type="string", help="convert image to black and white pixels", default="false", dest="dithering")
 	opts.add_option("", "--no-headers", type="string", help="omits Mr Beam start and end sequences", default="false", dest="noheaders")
 
 	(options, args) = opts.parse_args()
 	
-	ip = ImageProcessor(options.feedrate, options.contrast, options.sharpening, options.beam_diameter, options.intensity_black, options.intensity_white, material = "default")
+	boolDither = (options.dithering == "true")
+	ip = ImageProcessor(options.contrast, options.sharpening, options.beam_diameter, 
+	options.intensity_black, options.intensity_white, options.speed_black, options.speed_white, 
+	boolDither, options.pierce_time)
+	mode = "intensity"
 	path = args[0]
-	gcode = ip.img_to_gcode(path, options.width, options.height, options.x, options.y)
-	#gcode = ip.base64_to_gcode(base64img, options.width, options.height, options.x, options.y)
+	gcode = ip.img_to_gcode(path, options.width, options.height, options.x, options.y, path)
+	#gcode = ip.dataUrl_to_gcode(base64img, options.width, options.height, options.x, options.y)
 	
 	header = ""
 	footer = ""
@@ -192,14 +329,25 @@ if __name__ == "__main__":
 $H
 G92X0Y0Z0
 G90
-M08
+M8
 G21
+
 '''
 		footer = '''
-M05S0
-G0 X0.000 Y0.000
-M09
-M02
+M5
+G0X0Y0
+M9
+M2
 '''
 
-	print header + gcode + footer
+	if(len(args) == 2):
+		gcodefile = args[1]
+	else:
+		filename, _ = os.path.splitext(path)
+		gcodefile = filename + ".gco"
+		
+	with open (gcodefile, "w") as f:
+		f.write(gcode)
+
+	print("gcode written to " + gcodefile) 
+		

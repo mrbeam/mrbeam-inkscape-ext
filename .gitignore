@@ -2,4 +2,5 @@
 *.pyc
 debug.log
 debug.gcode
+*.iml
 .idea/
